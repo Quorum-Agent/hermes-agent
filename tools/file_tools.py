@@ -666,7 +666,8 @@ def _get_hermes_config_resolved() -> str | None:
         _hermes_config_resolved = str(get_config_path().resolve())
     except Exception:
         try:
-            _hermes_config_resolved = str(Path(_expand_tilde("~/.hermes/config.yaml")).resolve())
+            from product_identity import HOME_DIR_NAME
+            _hermes_config_resolved = str(Path(_expand_tilde(f"~/{HOME_DIR_NAME}/config.yaml")).resolve())
         except Exception:
             _hermes_config_resolved = None
     return _hermes_config_resolved

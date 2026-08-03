@@ -350,7 +350,8 @@ def _audit_path() -> Path:
         from hermes_constants import get_hermes_home
         base = Path(get_hermes_home())
     except Exception:
-        base = Path(os.path.expanduser("~/.hermes"))
+        from product_identity import HOME_DIR_NAME
+        base = Path(os.path.expanduser(f"~/{HOME_DIR_NAME}"))
     return base / "a2a_audit.jsonl"
 
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from product_identity import HOME_DIR_NAME
+
 LLM_PROVIDERS: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI",
@@ -46,7 +48,7 @@ EMBEDDER_PROVIDERS: dict[str, dict[str, Any]] = {
 VECTOR_PROVIDERS: dict[str, dict[str, Any]] = {
     "qdrant": {
         "label": "Qdrant",
-        "default_config": {"path": os.path.expanduser("~/.hermes/mem0_qdrant")},
+        "default_config": {"path": os.path.expanduser(f"~/{HOME_DIR_NAME}/mem0_qdrant")},
         "pip_dep": "qdrant-client",
     },
     "pgvector": {
