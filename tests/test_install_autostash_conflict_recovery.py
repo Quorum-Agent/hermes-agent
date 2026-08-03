@@ -22,6 +22,7 @@ POWERSHELL = next(
     (candidate for candidate in ("pwsh", "powershell") if shutil.which(candidate)),
     None,
 )
+QUORUM_ORIGIN = "https://github.com/Quorum-Agent/hermes-agent.git"
 
 
 def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -32,6 +33,13 @@ def _git(cwd: Path, *args: str, check: bool = True) -> subprocess.CompletedProce
         capture_output=True,
         text=True,
     )
+
+
+def _route_quorum_origin_through_local_mirror(managed: Path, remote: Path) -> None:
+    """Keep the managed origin canonical while routing network I/O locally."""
+    mirror_url = remote.resolve().as_uri()
+    _git(managed, "remote", "set-url", "origin", QUORUM_ORIGIN)
+    _git(managed, "config", f"url.{mirror_url}.insteadOf", QUORUM_ORIGIN)
 
 
 def _make_conflicted_managed_checkout(tmp_path: Path) -> Path:
@@ -51,6 +59,7 @@ def _make_conflicted_managed_checkout(tmp_path: Path) -> Path:
 
     managed = tmp_path / "hermes-agent"
     _git(tmp_path, "clone", "--branch", "main", str(remote), str(managed))
+    _route_quorum_origin_through_local_mirror(managed, remote)
 
     (managed / "tracked.txt").write_text("local edit\n", encoding="utf-8")
 
@@ -164,6 +173,7 @@ def test_install_sh_repository_stage_clean_apply_drops_stash(
 
     managed = tmp_path / "hermes-agent"
     _git(tmp_path, "clone", "--branch", "main", str(remote), str(managed))
+    _route_quorum_origin_through_local_mirror(managed, remote)
 
     # Local edit on a file upstream will NOT touch — no conflict on apply.
     (managed / "local-only.txt").write_text("local edit\n", encoding="utf-8")

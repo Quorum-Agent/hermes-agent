@@ -136,6 +136,12 @@ def test_direct_session_db_flushes_share_marker_claim(agent):
                 assert self.release.wait(timeout=5)
             self.rows.append(kwargs["content"])
 
+        def flush_token_counts(self):
+            # Real session DBs drain async token deltas at each persist point;
+            # _persist_and_drain() calls this directly, so the double must
+            # provide it or the persist thread dies with AttributeError.
+            return None
+
     db = _BarrierDB()
     agent._session_db = db
     agent._session_db_created = True
@@ -1890,6 +1896,11 @@ class TestConcurrentToolExecution:
                 enabled_toolsets=agent.enabled_toolsets,
                 disabled_toolsets=agent.disabled_toolsets,
                 tool_request_middleware_trace=[],
+                # Direct _invoke_tool has NOT been through the Quorum dispatch
+                # gate, so it forwards quorum_policy_checked=False — meaning
+                # handle_function_call still runs enforce_tool_dispatch. (The
+                # pre-checked concurrent/sequential paths pass True explicitly.)
+                quorum_policy_checked=False,
             )
             assert result == "result"
 
@@ -1973,7 +1984,12 @@ class TestConcurrentToolExecution:
         agent.tool_complete_callback = lambda tool_call_id, function_name, function_args, function_result: completes.append((tool_call_id, function_name, function_args, function_result))
         agent.tool_progress_callback = lambda event, name, preview, args, **kw: progress.append((event, name, preview, args))
 
-        with patch("run_agent.handle_function_call", return_value='{"success": true, "typed": "sk-pro...EFGH"}'):
+        # This unit isolates callback redaction. Quorum's dispatch gate has its
+        # own coverage and correctly blocks real credentials from browser tools.
+        with (
+            patch("agent.quorum_dispatch.enforce_tool_dispatch"),
+            patch("run_agent.handle_function_call", return_value='{"success": true, "typed": "sk-pro...EFGH"}'),
+        ):
             agent._execute_tool_calls_sequential(mock_msg, messages, "task-1")
 
         assert starts[0][2]["text"].startswith("sk-pro")

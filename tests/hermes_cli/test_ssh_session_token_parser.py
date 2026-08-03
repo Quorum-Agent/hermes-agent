@@ -133,7 +133,10 @@ def test_token_file_rejects_parent_escape(tmp_path, monkeypatch):
     escaped.chmod(0o600)
     override = set_hermes_home_override(home / ".quorum")
     try:
-        with pytest.raises(SystemExit, match="must be under the desktop-ssh directory"):
+        with pytest.raises(
+            SystemExit,
+            match=r"(?:invalid runtime path|must be under the desktop-ssh directory)",
+        ):
             _read_ssh_session_token_file(str(token_root / ".." / escaped.name))
         assert escaped.exists()
     finally:
@@ -184,7 +187,7 @@ def test_windows_runtime_inspection_rejects_stock_hermes(monkeypatch, tmp_path):
     executable.write_bytes(b"MZ")
     responses = iter(
         [
-            SimpleNamespace(returncode=0, stdout="Quorum v0.17.0\n", stderr=""),
+            SimpleNamespace(returncode=0, stdout="Hermes Agent v0.17.0\n", stderr=""),
             SimpleNamespace(
                 returncode=0,
                 stdout="--ssh-session-token-file --ssh-owner-nonce\n",

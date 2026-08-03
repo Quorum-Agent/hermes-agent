@@ -1257,7 +1257,7 @@ _SLACK_PRIORITY_ALIASES = ("btw", "bg")
 #     /hermes update on Slack. Demoted to free the native slot /approvals now
 #     claims — without this entry /approvals tips the registry past the 50-cap
 #     and silently clamps /update off, breaking Telegram parity.
-_SLACK_VIA_HERMES_ONLY = frozenset({"topup", "moa", "debug", "egress", "init", "version", "diff", "update"})
+_SLACK_VIA_HERMES_ONLY = frozenset({"topup", "moa", "debug", "egress", "init", "version", "diff", "update", "quorum"})
 
 
 def _sanitize_slack_name(raw: str) -> str:
@@ -1337,7 +1337,16 @@ def slack_native_slashes() -> list[tuple[str, str, str]]:
             continue
         _add(cmd.name, cmd.description, cmd.args_hint or "")
 
-    # Second pass: aliases.
+    # Second pass: plugin commands. Edition and extension commands are
+    # first-class capabilities, so register them ahead of low-priority aliases:
+    # whenever config gates free a slot under Slack's 50-command cap, a plugin
+    # command claims it before an ordinary alias does. Plugins that still cannot
+    # fit a saturated registry (e.g. /quorum) are surfaced via `/hermes <cmd>`
+    # through _SLACK_VIA_HERMES_ONLY, preserving Telegram parity.
+    for name, description, args_hint in _iter_plugin_command_entries():
+        _add(name, description, args_hint or "")
+
+    # Third pass: ordinary aliases.
     for cmd in COMMAND_REGISTRY:
         if not _is_gateway_available(cmd, overrides):
             continue
@@ -1345,10 +1354,6 @@ def slack_native_slashes() -> list[tuple[str, str, str]]:
             # Skip aliases that only differ from canonical by case/punctuation
             # normalization (already covered by _add dedup).
             _add(alias, f"Alias for /{cmd.name} — {cmd.description}", cmd.args_hint or "")
-
-    # Third pass: plugin commands.
-    for name, description, args_hint in _iter_plugin_command_entries():
-        _add(name, description, args_hint or "")
 
     return entries
 

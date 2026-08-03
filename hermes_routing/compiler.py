@@ -281,6 +281,12 @@ def _luhn_valid(candidate: str) -> bool:
 def _has_high_entropy_token(content: str) -> bool:
     for match in _HIGH_ENTROPY_TOKEN_PATTERN.finditer(content):
         token = re.sub(r"=+$", "", match.group(0))
+        # Absolute workspace/temp paths can be long and character-diverse
+        # without being credentials. Explicit key/JWT/PEM detectors still run
+        # independently, so exclude only multi-segment absolute path tokens
+        # from this generic entropy fallback.
+        if token.startswith("/") and token.count("/") >= 2:
+            continue
         character_classes = sum(
             1
             for present in (

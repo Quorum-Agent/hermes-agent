@@ -48,6 +48,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from product_identity import HOME_DIR_NAME, PRODUCT_NAME
+
 try:
     import httpx
 except ImportError:  # pragma: no cover - httpx is a hermes dependency
@@ -97,8 +99,8 @@ DEFAULT_SCOPE = "openid profile email"
 DEFAULT_DASHBOARD_HOST = "https://app.photon.codes"
 DEFAULT_SPECTRUM_HOST = "https://spectrum.photon.codes"
 
-# Default name of the project Hermes provisions for the operator.
-DEFAULT_PROJECT_NAME = "Hermes Agent"
+# Default name of the project this edition provisions for the operator.
+DEFAULT_PROJECT_NAME = PRODUCT_NAME
 
 # Polling defaults per RFC 8628.  Photon overrides via `interval` /
 # `expires_in` in the device-code response — those win.
@@ -117,7 +119,7 @@ def _auth_json_path() -> Path:
         from hermes_constants import get_hermes_home
         return Path(get_hermes_home()) / "auth.json"
     except Exception:
-        return Path(os.path.expanduser("~/.hermes")) / "auth.json"
+        return Path.home() / HOME_DIR_NAME / "auth.json"
 
 
 def _load_auth() -> Dict[str, Any]:

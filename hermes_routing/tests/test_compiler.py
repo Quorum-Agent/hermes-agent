@@ -1234,6 +1234,17 @@ class TestDetectSensitiveContent:
     def test_empty_string_no_categories(self):
         assert detect_sensitive_content("") == []
 
+    def test_absolute_workspace_path_is_not_a_credential(self):
+        content = (
+            "/tmp/pytest-of-runner/pytest-284/"
+            "test_codex_final_preflight_bou0/hermes_test"
+        )
+        assert detect_sensitive_content(content) == []
+
+    def test_generic_opaque_high_entropy_token_is_a_credential(self):
+        token = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
+        assert "credentials" in detect_sensitive_content(token)
+
     def test_aws_access_key(self):
         cats = detect_sensitive_content("AKIAIOSFODNN7EXAMPLE")
         assert "credentials" in cats

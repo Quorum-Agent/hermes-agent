@@ -430,7 +430,10 @@ def enforce_model_request(
     _record("model_dispatch", decision)
     if not decision.allowed:
         raise QuorumPolicyViolation(decision.reason)
-    return dict(request)
+    # The gate is observational: approved payloads must retain object identity.
+    # Several provider/Relay adapters use identity to distinguish an untouched
+    # request from a rewritten one, and copying here silently changed behavior.
+    return request if isinstance(request, dict) else dict(request)
 
 
 def classify_tool_reach(tool_name: str) -> str:

@@ -21,6 +21,8 @@ from __future__ import annotations
 import os
 from typing import Optional
 
+from product_identity import PRODUCT_NAME
+
 
 def relay_url() -> Optional[str]:
     """The connector relay endpoint URL, or None when relay is not configured.
@@ -284,10 +286,10 @@ def relay_display_name() -> Optional[str]:
         except Exception:  # noqa: BLE001 - branding absence must never crash boot
             value = ""
         # The stock brand name is IDENTICAL on every default install, so in a
-        # multi-agent scope it would prefix every reply "**Hermes Agent:**" —
+        # multi-agent scope it would prefix every reply with the stock name —
         # shadowing the connector's linked-owner fallback, which actually
         # disambiguates. Only a deliberately customized name is forwarded.
-        if value == "Hermes Agent":
+        if value in {PRODUCT_NAME, "Hermes Agent"}:
             value = ""
     # Mirror the connector's ingest sanitization (trim + 64-char cap) so what
     # we send is what gets stored.

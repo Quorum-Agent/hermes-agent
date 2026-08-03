@@ -839,8 +839,8 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
                         pre_tool_block_checked=True,
                         skip_tool_request_middleware=True,
                         skip_tool_execution_middleware=True,
-                        quorum_policy_checked=True,
                         tool_request_middleware_trace=list(middleware_trace),
+                        quorum_policy_checked=True,
                     )
 
                 managed = _run_agent_tool_execution_middleware(

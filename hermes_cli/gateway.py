@@ -18,6 +18,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from product_identity import HOME_DIR_NAME
+
 # Ensure /bin and /usr/bin are on PATH so launchctl/systemctl are discoverable
 # when running under UV's bundled Python which ships a minimal PATH (#3849).
 if os.name == "posix":
@@ -2655,8 +2657,8 @@ def _hermes_home_for_target_user(target_home_dir: str) -> str:
 
     When installing a system service via sudo, get_hermes_home() resolves to
     root's home.  This translates it to the target user's equivalent path:
-      /root/.hermes                    → /home/alice/.hermes
-      /root/.hermes/profiles/coder     → /home/alice/.hermes/profiles/coder
+      /root/.quorum                    → /home/alice/.quorum
+      /root/.quorum/profiles/coder     → /home/alice/.quorum/profiles/coder
       /opt/custom-hermes               → /opt/custom-hermes  (kept as-is)
     """
     current_hermes_raw = os.environ.get("HERMES_HOME", "").strip()
@@ -2668,19 +2670,19 @@ def _hermes_home_for_target_user(target_home_dir: str) -> str:
     # Keep explicit custom paths lexical. Resolving a non-existent custom path
     # can rewrite it through host-specific path mappings, which would bake a
     # different HERMES_HOME into the generated service unit.
-    current_default = Path.home() / ".hermes"
-    target_default = Path(target_home_dir) / ".hermes"
+    current_default = Path.home() / HOME_DIR_NAME
+    target_default = Path(target_home_dir) / HOME_DIR_NAME
 
-    # Default ~/.hermes → remap to target user's default
+    # Default edition home → remap to target user's default.
     if current_hermes == current_default:
         return str(target_default)
 
-    # Profile or subdir of ~/.hermes → preserve the relative structure
+    # Profile or subdir of the edition home → preserve the relative structure.
     try:
         relative = current_hermes.relative_to(current_default)
         return str(target_default / relative)
     except ValueError:
-        # Completely custom path (not under ~/.hermes) — keep as-is
+        # Completely custom path (not under the edition home) — keep as-is.
         return str(current_hermes)
 
 

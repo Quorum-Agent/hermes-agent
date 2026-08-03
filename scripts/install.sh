@@ -1261,7 +1261,9 @@ show_manual_install_hint() {
 
 assert_quorum_origin() {
     local repo="$1" origin
-    origin="$(git -C "$repo" remote get-url origin 2>/dev/null || true)"
+    # Read the configured value instead of the rewritten transport URL. This
+    # keeps the ownership guard compatible with url.*.insteadOf mirrors.
+    origin="$(git -C "$repo" config --get remote.origin.url 2>/dev/null || true)"
     case "$(printf '%s' "$origin" | tr '[:upper:]' '[:lower:]')" in
         git@github.com:quorum-agent/hermes-agent.git|git@github.com:quorum-agent/hermes-agent|https://github.com/quorum-agent/hermes-agent.git|https://github.com/quorum-agent/hermes-agent)
             return 0

@@ -62,6 +62,8 @@ from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse
 
+from product_identity import PRODUCT_NAME
+
 # NOTE: `from openai import OpenAI` is deliberately NOT at module top — the
 # openai SDK pulls a large type tree (~240 ms cold, including responses/*,
 # graders/*). We expose `OpenAI` here as a thin proxy that imports the SDK on
@@ -793,7 +795,7 @@ _PROVIDERS_WITHOUT_VISION: frozenset = frozenset({
 # reads; the previous `X-OpenRouter-Title` label was not recognized there.
 _OR_HEADERS_BASE = {
     "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-    "X-Title": "Hermes Agent",
+    "X-Title": PRODUCT_NAME,
     "X-OpenRouter-Categories": "productivity,cli-agent",
 }
 
@@ -914,7 +916,7 @@ from hermes_cli import __version__ as _HERMES_VERSION
 
 _AI_GATEWAY_HEADERS = {
     "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-    "X-Title": "Hermes Agent",
+    "X-Title": PRODUCT_NAME,
     "User-Agent": f"HermesAgent/{_HERMES_VERSION}",
 }
 

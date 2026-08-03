@@ -73,10 +73,13 @@ if (-not $InstallDir) { $InstallDir = Join-Path $HermesHome "hermes-agent" }
 $allowHermesMigration = $env:QUORUM_ALLOW_HERMES_HOME_MIGRATION -eq '1'
 if (-not $allowHermesMigration) {
     $chosenHome = [IO.Path]::GetFullPath($HermesHome).TrimEnd('\', '/')
-    $stockHomes = @(
-        [IO.Path]::GetFullPath((Join-Path $HOME '.hermes')).TrimEnd('\', '/'),
-        [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'hermes')).TrimEnd('\', '/')
-    )
+    $stockHomes = @()
+    if ($HOME) {
+        $stockHomes += [IO.Path]::GetFullPath((Join-Path $HOME '.hermes')).TrimEnd('\', '/')
+    }
+    if ($env:LOCALAPPDATA) {
+        $stockHomes += [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'hermes')).TrimEnd('\', '/')
+    }
     if ($stockHomes -contains $chosenHome) {
         throw "Quorum refuses to share stock Hermes state at $HermesHome. Set QUORUM_ALLOW_HERMES_HOME_MIGRATION=1 only for an intentional migration."
     }
@@ -1592,7 +1595,10 @@ function Install-SystemPackages {
 
 function Assert-QuorumRepositoryOrigin {
     param([Parameter(Mandatory=$true)][string]$Repository)
-    $origin = (& git -C $Repository remote get-url origin 2>$null | Select-Object -First 1)
+    # Inspect the configured value rather than remote get-url, which expands
+    # url.*.insteadOf mappings. This preserves the ownership guard while still
+    # allowing an administrator to route the canonical URL through a mirror.
+    $origin = (& git -C $Repository config --get remote.origin.url 2>$null | Select-Object -First 1)
     $canonical = if ($origin) { $origin.ToString().Trim().ToLowerInvariant() } else { "" }
     $allowed = @(
         "git@github.com:quorum-agent/hermes-agent.git",

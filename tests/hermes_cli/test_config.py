@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
+from hermes_constants import get_default_hermes_root
 from hermes_cli.config import (
     DEFAULT_CONFIG,
     check_config_version,
@@ -36,7 +37,7 @@ class TestGetHermesHome:
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("HERMES_HOME", None)
             home = get_hermes_home()
-            assert home == Path.home() / ".hermes"
+            assert home == get_default_hermes_root()
 
 
 class TestEnsureHermesHome:
