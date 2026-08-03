@@ -527,6 +527,20 @@ def _neutralize_quorum_policy_for_legacy_tests(_hermetic_environment, monkeypatc
             cloud_consent=True,
         ),
     )
+    # The sensitive-content sub-gate fires independently of policy/consent: it
+    # blocks any request whose text trips detect_sensitive_content when the
+    # provider reach is above local.  The broad legacy suite feeds arbitrary
+    # prompt content through cloud-shaped provider mocks — including the agent's
+    # own git-context block, whose recent-commit subjects can contain long
+    # branch refs — so leaving this gate live couples thousands of unrelated
+    # tests to prompt content (a long branch name once turned the whole suite
+    # red).  Neutralize it here too; the dedicated policy tests in
+    # tests/agent/test_quorum_dispatch.py override this patch in their own body.
+    monkeypatch.setattr(
+        _quorum_dispatch,
+        "_sensitive_categories",
+        lambda _request: (),
+    )
 
 
 @pytest.fixture(autouse=True)
