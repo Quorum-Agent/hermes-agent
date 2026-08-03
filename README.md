@@ -12,8 +12,8 @@
 Quorum Edition is a separately distributed build of
 [Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research.
 It keeps Hermes' agent, tools, gateways, and learning loop while adding a
-host-owned routing boundary, an isolated `.quorum` state root, Quorum desktop
-identity, and a built-in policy inspector.
+host-owned routing boundary, an isolated `.quorum` state root and gateway
+service identity, Quorum desktop identity, and a built-in policy inspector.
 
 The mandatory guard runs after ordinary request middleware and immediately
 before governed model-provider and registered-tool dispatch. Private is the
@@ -37,6 +37,7 @@ governed dispatch fails closed.
 | Sensitive requests | Recognized categories restricted to device/loopback dispatch |
 | Inspection | Bounded process-memory decisions without prompt or tool-argument retention |
 | State | `~/.quorum` on Unix; `%LOCALAPPDATA%\quorum` on native Windows |
+| Coexistence | Runs beside a stock Hermes install: separate `quorum-gateway` service identity, with ownership-verified unit migration that never touches a coexisting Hermes |
 | Distribution | Quorum desktop artifacts plus a limited stock-Hermes Companion ZIP |
 
 The Companion ZIP does **not** retrofit the mandatory host boundary into stock
