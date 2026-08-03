@@ -65,6 +65,54 @@ stores runtime state under `~/.quorum` (Unix) or
 `%LOCALAPPDATA%\quorum` (native Windows). It never silently adopts `~/.hermes`.
 Hermes remains credited as the upstream runtime.
 
+## Coexistence and isolation
+
+Quorum is built to run side by side with a stock Hermes install on the same
+machine without collision. Isolation spans several dimensions:
+
+- **State root.** Runtime state lives under `~/.quorum` (Unix) or
+  `%LOCALAPPDATA%\quorum` (native Windows); Quorum never silently adopts
+  `~/.hermes`. Auth tokens are not shared — Nous refresh tokens are single-use,
+  so a shared `auth.json` would invalidate the other install's session.
+- **CLI surface.** `quorum` is installed as an alias alongside the upstream
+  `hermes` command; both resolve to the same entrypoint. `hermes` is kept so
+  existing scripts and upstream documentation keep working.
+- **Service identity.** The gateway registers as `quorum-gateway` (systemd) and
+  `ai.quorum.gateway` (launchd), distinct from Hermes' `hermes-gateway` /
+  `ai.hermes.gateway`. This keeps two installs from fighting over the same unit
+  name, launchd label, or messaging bot token.
+- **Telemetry.** Exported spans and gateway-health resource attributes identify
+  as `quorum-gateway` so a shared observability backend does not merge the two
+  installs.
+
+### Ownership-verified unit migration
+
+An install created before the service rename still has a `hermes-gateway` unit.
+That name is ambiguous — it could be Quorum's own pre-rename unit (safe to
+migrate to `quorum-gateway`) or a coexisting Hermes install's *current* unit
+(must never be touched). `_unit_is_ours()` in `hermes_cli/gateway.py` resolves
+the ambiguity before Quorum migrates or restarts any such unit. A unit is ours
+when either:
+
+- it carries the `# X-Quorum-Managed` marker Quorum writes into units it
+  generates; or
+- this install's resolved home or checkout path appears in the unit's
+  `Environment=` / `ExecStart=` / `WorkingDirectory=` lines.
+
+A side-by-side Hermes install references a different home and checkout and lacks
+the marker, so it fails the check and is left alone. Detection, migration, and
+the update-time fleet restart all fail closed — on any doubt, the foreign unit
+is not touched. `quorum-gateway` units are ours by name and skip the check.
+
+### Kept Hermes-compatible
+
+To preserve upstream compatibility and keep merges reviewable, some identifiers
+are intentionally *not* rebranded: the `hermes` CLI command, packaged
+binary/process basenames (`Hermes.exe`, the `hermes-gateway` shim), `HERMES_*`
+environment variables, the `hermes-gateway` toolset-bundle name, the
+`HermesAgent` billing/User-Agent token, and Hermes attribution. Only user-facing
+product identity and the service/telemetry identity are Quorum's.
+
 ## Built-in plugin and Companion
 
 `plugins/quorum` is a bundled dashboard/command surface. It can display
