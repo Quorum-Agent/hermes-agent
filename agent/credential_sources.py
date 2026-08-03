@@ -150,6 +150,7 @@ def _remove_env_source(provider: str, removed) -> RemovalResult:
       3. Var lives in both → clear from .env, hint about shell
     """
     from hermes_cli.config import get_env_path, remove_env_value
+    from hermes_constants import display_hermes_home
 
     result = RemovalResult()
     env_var = removed.source[len("env:"):]
@@ -177,7 +178,7 @@ def _remove_env_source(provider: str, removed) -> RemovalResult:
     if shell_exported:
         result.hints.extend([
             f"Note: {env_var} is still set in your shell environment "
-            f"(not in ~/.hermes/.env).",
+            f"(not in {display_hermes_home()}/.env).",
             "  Unset it there (shell profile, systemd EnvironmentFile, "
             "launchd plist, etc.) or it will keep being visible to Hermes.",
             f"  The pool entry is now suppressed — Hermes will ignore "

@@ -844,7 +844,7 @@ class AgentImporter:
 def import_agent_command(args) -> None:
     """Handle ``hermes import-agent`` (invoked from hermes_cli.main)."""
     from hermes_cli.config import get_config_path, load_config, save_config
-    from hermes_constants import get_hermes_home
+    from hermes_constants import get_hermes_home, display_hermes_home
     from hermes_cli.setup import (
         Colors,
         color,
@@ -963,12 +963,13 @@ def import_agent_command(args) -> None:
     print()
     print_success("Import complete.")
     print_info("API keys and credentials were NOT imported — run 'hermes setup' "
-               "to configure providers, or add them to ~/.hermes/.env.")
+               f"to configure providers, or add them to {display_hermes_home()}/.env.")
 
 
 def print_import_report(report: Dict[str, Any], dry_run: bool) -> None:
     """Print a formatted per-item import report (claw-migrate style)."""
     from hermes_cli.setup import Colors, color, print_header, print_info
+    from hermes_constants import display_hermes_home
 
     summary = report.get("summary", {})
     print()
@@ -1007,7 +1008,7 @@ def print_import_report(report: Dict[str, Any], dry_run: bool) -> None:
         print(color("  ⚷ Secrets stripped (never imported):", Colors.YELLOW))
         for name in stripped:
             print(f"      {name}")
-        print_info("Re-add credentials deliberately via 'hermes setup' or ~/.hermes/.env.")
+        print_info(f"Re-add credentials deliberately via 'hermes setup' or {display_hermes_home()}/.env.")
         print()
 
     parts = []

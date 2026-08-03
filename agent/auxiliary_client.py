@@ -116,7 +116,7 @@ OpenAI = _OpenAIProxy()  # module-level name, resolves lazily on call/isinstance
 from agent.credential_pool import load_pool
 from agent.model_metadata import MINIMUM_CONTEXT_LENGTH, get_model_context_length
 from hermes_cli.config import get_hermes_home
-from hermes_constants import OPENROUTER_BASE_URL
+from hermes_constants import OPENROUTER_BASE_URL, display_hermes_home
 from utils import base_url_host_matches, base_url_hostname, env_float, model_forces_max_completion_tokens, normalize_proxy_env_vars
 
 logger = logging.getLogger(__name__)
@@ -5457,7 +5457,7 @@ def _resolve_auto(
                 "OPENAI_BASE_URL is set (%s) but model.provider is '%s'. "
                 "Auxiliary clients may route to the wrong endpoint. "
                 "Run: hermes model to reconfigure, or remove "
-                "OPENAI_BASE_URL from ~/.hermes/.env",
+                f"OPENAI_BASE_URL from {display_hermes_home()}/.env",
                 _env_base, _cfg_provider,
             )
             _stale_base_url_warned = True

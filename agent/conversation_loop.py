@@ -5364,6 +5364,7 @@ def run_conversation(
                         error_msg,
                     )
                     if _is_thinking_timeout:
+                        from hermes_constants import display_hermes_home
                         agent._vprint(
                             f"{agent.log_prefix}   💡 The model's thinking "
                             f"phase exceeded the upstream proxy's idle "
@@ -5380,7 +5381,7 @@ def run_conversation(
                         agent._vprint(
                             f"{agent.log_prefix}      1. Set "
                             f"`providers.{_provider}.models.{_model}.stale_timeout_seconds: 900` "
-                            f"in `~/.hermes/config.yaml` to extend the per-call "
+                            f"in `{display_hermes_home()}/config.yaml` to extend the per-call "
                             f"timeout. (Hermes's built-in floor is 600s for "
                             f"known reasoning models — if you still see this "
                             f"after raising, the upstream cap is even shorter.)",

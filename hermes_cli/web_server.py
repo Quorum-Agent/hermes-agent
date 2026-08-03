@@ -16985,6 +16985,7 @@ def _mount_plugin_api_routes():
     execution vector that bypasses the user's intent. (#46435,
     GHSA-mcfc-hp25-cjv7)
     """
+    from hermes_constants import display_hermes_home
     # Load the enabled/disabled sets once for the loop.
     try:
         from hermes_cli.plugins_cmd import _get_enabled_set, _get_disabled_set
@@ -17027,7 +17028,7 @@ def _mount_plugin_api_routes():
             _log.warning(
                 "Plugin %s: ignoring backend api=%s (project plugins may "
                 "not auto-import Python code; move the plugin to "
-                "~/.hermes/plugins/ if you trust it)",
+                f"{display_hermes_home()}/plugins/ if you trust it)",
                 plugin["name"], api_file_name,
             )
             continue

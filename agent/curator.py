@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Set
 
-from hermes_constants import get_hermes_home
+from hermes_constants import get_hermes_home, display_hermes_home
 from tools import skill_usage
 from utils import atomic_json_write
 
@@ -1336,7 +1336,7 @@ def _render_report_markdown(p: Dict[str, Any]) -> str:
         lines.append(
             "_These skills were **absorbed into another skill** during this run — "
             "their content still lives, just under a different name. "
-            "The original directory was moved to `~/.hermes/skills/.archive/` for "
+            f"The original directory was moved to `{display_hermes_home()}/skills/.archive/` for "
             "safety and can be restored via `hermes curator restore <name>` if the "
             "consolidation was wrong._\n"
         )
@@ -1372,7 +1372,7 @@ def _render_report_markdown(p: Dict[str, Any]) -> str:
         lines.append(
             "_These skills were archived without being merged into an umbrella "
             "(e.g. stale, unused, or judged irrelevant). "
-            "Directories live under `~/.hermes/skills/.archive/`. "
+            f"Directories live under `{display_hermes_home()}/skills/.archive/`. "
             "Restore any via `hermes curator restore <name>`._\n"
         )
         SHOW = 50
@@ -1459,7 +1459,7 @@ def _render_report_markdown(p: Dict[str, Any]) -> str:
     # Recovery footer
     lines.append("## Recovery\n")
     lines.append("- Restore an archived skill: `hermes curator restore <name>`")
-    lines.append("- All archives live under `~/.hermes/skills/.archive/` and are recoverable by `mv`")
+    lines.append(f"- All archives live under `{display_hermes_home()}/skills/.archive/` and are recoverable by `mv`")
     lines.append("- See `run.json` in this directory for the full machine-readable record.")
     lines.append("")
 

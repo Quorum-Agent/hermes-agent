@@ -3522,10 +3522,11 @@ class GatewaySlashCommandsMixin:
         # *different* command — it diffs a bundled skill against its stock
         # version — so we point at the pending JSON file, not that command.)
         if args and args[0].lower() == "diff" and len(out) > 3000:
+            from hermes_constants import display_hermes_home
             pending_id = args[1] if len(args) > 1 else "<id>"
             out = (out[:3000]
                    + "\n… (truncated — full diff in "
-                     f"~/.hermes/pending/skills/{pending_id}.json)")
+                     f"{display_hermes_home()}/pending/skills/{pending_id}.json)")
         return out
 
     async def _handle_fast_command(self, event: MessageEvent) -> Optional[str]:
