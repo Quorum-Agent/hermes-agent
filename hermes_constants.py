@@ -52,6 +52,23 @@ def get_hermes_home_override() -> str | None:
     return str(override)
 
 
+def _home_env_value(env: dict[str, str] | None = None) -> str:
+    """Return the home path from the environment, preferring ``QUORUM_HOME``.
+
+    Coexistence: a Quorum install honors its own ``QUORUM_HOME`` first so it can
+    run side-by-side with an upstream Hermes that uses ``HERMES_HOME``.
+    ``HERMES_HOME`` remains a fallback, so existing setups and Hermes-spawned
+    subprocesses keep working (prefer-Quorum-fall-back-to-Hermes).  When *env*
+    is given it is consulted before ``os.environ`` (preserving the previous
+    per-call env-then-process precedence).
+    """
+    for src in ((env or {}), os.environ):
+        val = (src.get("QUORUM_HOME") or src.get("HERMES_HOME") or "").strip()
+        if val:
+            return val
+    return ""
+
+
 def _get_platform_default_hermes_home() -> Path:
     """Return the platform-native Quorum Edition runtime home path."""
     if sys.platform == "win32":
@@ -70,7 +87,7 @@ def _hermes_home_from_env() -> Path:
     scope rather than a per-task profile.  Shared by :func:`get_hermes_home`
     and :func:`get_process_hermes_home` so the two never drift.
     """
-    val = os.environ.get("HERMES_HOME", "").strip()
+    val = _home_env_value()
     if val:
         return Path(val)
     return _get_platform_default_hermes_home()
@@ -135,7 +152,7 @@ def get_hermes_home() -> Path:
     if override:
         return Path(override)
 
-    if not os.environ.get("HERMES_HOME", "").strip():
+    if not _home_env_value():
         _warn_profile_fallback_once()
 
     return _hermes_home_from_env()
@@ -178,7 +195,7 @@ def get_default_hermes_root() -> Path:
     Import-safe — no dependencies beyond stdlib.
     """
     native_home = _get_platform_default_hermes_home()
-    env_home = os.environ.get("HERMES_HOME", "")
+    env_home = _home_env_value()
     if not env_home:
         return native_home
     env_path = Path(env_home)
@@ -826,7 +843,7 @@ def _norm_home_path(path: str | None) -> str:
 
 def _profile_home_path(env: dict[str, str] | None = None) -> str | None:
     """Return ``{HERMES_HOME}/home`` when the profile-home directory exists."""
-    hermes_home = get_hermes_home_override() or (env or {}).get("HERMES_HOME") or os.getenv("HERMES_HOME")
+    hermes_home = get_hermes_home_override() or _home_env_value(env)
     if not hermes_home:
         return None
     profile_home = os.path.join(hermes_home, "home")
