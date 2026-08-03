@@ -12,9 +12,10 @@ import threading
 import contextvars
 from collections import OrderedDict
 from pathlib import Path
+from typing import Optional
 
 from hermes_constants import get_hermes_home, get_skills_dir, is_wsl
-from typing import Optional
+from product_identity import PRODUCT_NAME, UPSTREAM_ATTRIBUTION
 
 from agent.runtime_cwd import resolve_agent_cwd
 from agent.skill_utils import (
@@ -142,7 +143,7 @@ def _strip_yaml_frontmatter(content: str) -> str:
 # =========================================================================
 
 DEFAULT_AGENT_IDENTITY = (
-    "You are Hermes Agent, an intelligent AI assistant created by Nous Research. "
+    f"You are {PRODUCT_NAME}, an intelligent AI assistant. {UPSTREAM_ATTRIBUTION}. "
     "You are helpful, knowledgeable, and direct. You assist users with a wide "
     "range of tasks including answering questions, writing and editing code, "
     "analyzing information, creative work, and executing actions via your tools. "
@@ -152,9 +153,10 @@ DEFAULT_AGENT_IDENTITY = (
 )
 
 HERMES_AGENT_HELP_GUIDANCE = (
-    "You run on Hermes Agent (by Nous Research). When the user needs help with "
-    "Hermes itself — configuring, setting up, using, extending, or troubleshooting "
-    "it — or when you need to understand your own features, tools, or capabilities, "
+    f"You run on {PRODUCT_NAME}, which is based on Hermes Agent by Nous Research. "
+    "When the user needs help with Quorum or its underlying Hermes runtime — "
+    "configuring, setting up, using, extending, or troubleshooting it — or when "
+    "you need to understand your own features, tools, or capabilities, "
     "the documentation at https://hermes-agent.nousresearch.com/docs is your "
     "authoritative reference and always holds the latest, most up-to-date "
     "information. Load the `hermes-agent` skill with skill_view(name='hermes-agent') "

@@ -51,9 +51,13 @@ jobs:
             exit 0
           fi
 
-          # Split "RUN_ID STATUS" into two vars.
-          RUN_ID="${RUN_ID%% *}"
-          STATUS="${RUN_ID##* }"
+          # Split "RUN_ID STATUS" without destroying the source value before
+          # extracting the second field.  Overwriting RUN_ID first made STATUS
+          # equal the numeric run id, so the workflow always entered its wait
+          # path and could rerun an obsolete head after a newer push.
+          RUN_AND_STATUS="$RUN_ID"
+          RUN_ID="${RUN_AND_STATUS%% *}"
+          STATUS="${RUN_AND_STATUS##* }"
 
           echo "Latest CI run: $RUN_ID (status: $STATUS)"
 

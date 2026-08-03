@@ -1,0 +1,6 @@
+name: quorum
+version: "0.1.0"
+description: "Inspect Quorum routing decisions and configure the default policy. Quorum Edition enforcement is part of the host; the stock-Hermes Companion is visibility-only and does not claim fail-closed enforcement."
+author: "Quorum-Agent"
+kind: standalone
+

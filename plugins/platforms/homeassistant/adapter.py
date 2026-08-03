@@ -21,6 +21,8 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional, Set
 
+from product_identity import PRODUCT_NAME
+
 try:
     import aiohttp
     AIOHTTP_AVAILABLE = True
@@ -427,7 +429,7 @@ class HomeAssistantAdapter(BasePlatformAdapter):
             "Content-Type": "application/json",
         }
         payload = {
-            "title": "Hermes Agent",
+            "title": PRODUCT_NAME,
             "message": content[:self.MAX_MESSAGE_LENGTH],
         }
 

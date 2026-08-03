@@ -506,6 +506,30 @@ def _isolate_hermes_home(_hermetic_environment):
 
 
 @pytest.fixture(autouse=True)
+def _neutralize_quorum_policy_for_legacy_tests(_hermetic_environment, monkeypatch):
+    """Let lower-layer legacy tests exercise their intended provider callbacks.
+
+    Quorum's production default is deliberately Private and is covered by the
+    dedicated policy/security tests.  Thousands of upstream unit tests mock a
+    cloud-shaped provider solely to test retries, cancellation, codecs, or
+    timeout behavior; letting the mandatory policy gate short-circuit those
+    mocks would stop the lower layer from being tested at all.  Give that broad
+    legacy suite an explicit consented Balanced test policy.  A policy test can
+    (and does) override this fixture's patch in its own body.
+    """
+    from agent import quorum_dispatch as _quorum_dispatch
+
+    monkeypatch.setattr(
+        _quorum_dispatch,
+        "_load_settings",
+        lambda: _quorum_dispatch.DispatchSettings(
+            default_policy="balanced",
+            cloud_consent=True,
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
 def _neutralize_webbrowser(monkeypatch):
     """Record browser-open attempts instead of opening real browser windows."""
     import webbrowser as _webbrowser

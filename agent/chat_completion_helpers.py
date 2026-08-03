@@ -2087,6 +2087,7 @@ def handle_max_iterations(agent, messages: list, api_call_count: int) -> str:
                 "api_mode": str(
                     getattr(agent, "api_mode", "") or "chat_completions"
                 ),
+                "base_url": str(getattr(agent, "base_url", "") or ""),
                 "api_request_id": summary_api_request_id,
                 "call_role": "iteration_summary",
                 "retry_count": retry_count,
@@ -2637,6 +2638,7 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                     ),
                     metadata={
                         "api_mode": "custom",
+                        "base_url": str(getattr(agent, "base_url", "") or ""),
                         "api_request_id": getattr(
                             agent, "_current_api_request_id", None
                         ),
@@ -3127,6 +3129,7 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 completed_response_predicate=lambda value: hasattr(value, "choices"),
                 metadata={
                     "api_mode": "chat_completions",
+                    "base_url": str(getattr(agent, "base_url", "") or ""),
                     "api_request_id": getattr(agent, "_current_api_request_id", None),
                     "call_role": (
                         "delegated"
@@ -3580,6 +3583,7 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 accept_chunk=_accept_anthropic_event,
                 metadata={
                     "api_mode": "anthropic_messages",
+                    "base_url": str(getattr(agent, "base_url", "") or ""),
                     "api_request_id": getattr(agent, "_current_api_request_id", None),
                     "call_role": (
                         "delegated"

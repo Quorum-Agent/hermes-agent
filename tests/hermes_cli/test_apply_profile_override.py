@@ -16,6 +16,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+from product_identity import HOME_DIR_NAME
+
 
 def _run_apply_profile_override(
     tmp_path, monkeypatch, *, hermes_home: str | None, active_profile: str | None,
@@ -26,7 +28,7 @@ def _run_apply_profile_override(
     Returns the value of os.environ["HERMES_HOME"] after the call,
     or None if unset.
     """
-    hermes_root = tmp_path / ".hermes"
+    hermes_root = tmp_path / HOME_DIR_NAME
     hermes_root.mkdir(parents=True, exist_ok=True)
 
     if active_profile is not None:
@@ -67,7 +69,7 @@ class TestApplyProfileOverrideHermesHomeGuard:
         and the user switches to a profile via `hermes profile use`.
         Before the fix, the guard returned early and active_profile was ignored.
         """
-        hermes_root = tmp_path / ".hermes"
+        hermes_root = tmp_path / HOME_DIR_NAME
         hermes_root.mkdir(parents=True, exist_ok=True)
 
         result = _run_apply_profile_override(
@@ -90,9 +92,9 @@ class TestApplyProfileOverrideHermesHomeGuard:
         """sudo elias ... should resolve `-p elias` under SUDO_USER, not root."""
         root_home = tmp_path / "root"
         user_home = tmp_path / "home" / "hermes"
-        profile_dir = user_home / ".hermes" / "profiles" / "elias"
+        profile_dir = user_home / HOME_DIR_NAME / "profiles" / "elias"
         profile_dir.mkdir(parents=True, exist_ok=True)
-        (root_home / ".hermes").mkdir(parents=True, exist_ok=True)
+        (root_home / HOME_DIR_NAME).mkdir(parents=True, exist_ok=True)
 
         monkeypatch.setattr(Path, "home", lambda: root_home)
         monkeypatch.setenv("SUDO_USER", "hermes")
@@ -146,7 +148,7 @@ class TestSupervisedChildIgnoresStickyProfile:
         """A supervised named-profile slot passes ``-p <name>`` explicitly;
         that must still resolve (the sentinel guard only skips the sticky
         active_profile fallback, never an explicit flag)."""
-        hermes_root = tmp_path / ".hermes"
+        hermes_root = tmp_path / HOME_DIR_NAME
         hermes_root.mkdir(parents=True, exist_ok=True)
         (hermes_root / "active_profile").write_text("briefer")
         (hermes_root / "profiles" / "briefer").mkdir(parents=True, exist_ok=True)

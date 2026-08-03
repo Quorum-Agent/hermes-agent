@@ -16,6 +16,20 @@ from trajectory_compressor import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _permissive_quorum_dispatch(monkeypatch):
+    from agent import quorum_dispatch
+
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_load_settings",
+        lambda: quorum_dispatch.DispatchSettings(
+            default_policy="balanced",
+            cloud_consent=True,
+        ),
+    )
+
+
 def test_import_loads_env_from_hermes_home(tmp_path, monkeypatch):
     home = tmp_path / ".hermes"
     home.mkdir()
@@ -43,6 +57,7 @@ def test_generate_summary_kimi_omits_temperature():
     compressor.logger = MagicMock()
     compressor._use_call_llm = False
     compressor.client = MagicMock()
+    compressor.client.base_url = config.base_url
     compressor.client.chat.completions.create.return_value = SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="[CONTEXT SUMMARY]: summary"))]
     )
@@ -52,6 +67,32 @@ def test_generate_summary_kimi_omits_temperature():
 
     assert result.startswith("[CONTEXT SUMMARY]:")
     assert "temperature" not in compressor.client.chat.completions.create.call_args.kwargs
+
+
+def test_generate_summary_private_policy_never_invokes_custom_provider(monkeypatch):
+    from agent import quorum_dispatch
+
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_load_settings",
+        lambda: quorum_dispatch.DispatchSettings(default_policy="private"),
+    )
+    config = CompressionConfig(
+        base_url="https://api.example.com/v1",
+        summarization_model="remote-model",
+        max_retries=1,
+    )
+    compressor = TrajectoryCompressor.__new__(TrajectoryCompressor)
+    compressor.config = config
+    compressor.logger = MagicMock()
+    compressor._use_call_llm = False
+    compressor.client = MagicMock()
+    compressor.client.base_url = config.base_url
+
+    result = compressor._generate_summary("tool output", TrajectoryMetrics())
+
+    assert "Summary generation failed" in result
+    compressor.client.chat.completions.create.assert_not_called()
 
 
 
@@ -333,6 +374,7 @@ class TestGenerateSummary:
     def test_generate_summary_handles_none_content(self):
         tc = _make_compressor()
         tc.client = MagicMock()
+        tc.client.base_url = tc.config.base_url
         tc.client.chat.completions.create.return_value = SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content=None))]
         )

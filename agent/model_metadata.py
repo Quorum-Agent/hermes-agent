@@ -2543,12 +2543,12 @@ def get_model_context_length(
         except ImportError:
             pass  # boto3 not installed — fall through to generic resolution
         else:
-            # Bedrock does not expose the context window via any metadata API,
-            # so get_bedrock_context_length() probes the live endpoint (one
-            # fast, pre-inference length rejection) to read the real window.
-            # Cache the probe result per model so we pay that cost once, not
-            # every turn — keyed by base_url when present, else a synthetic
-            # bedrock:// key so display/offline paths share the entry.
+            # Bedrock does not expose the context window via a metadata API.
+            # Quorum Edition uses the maintained static table and never sends
+            # a synthetic oversized prompt for metadata discovery; the helper
+            # retains the upstream probe only for non-Quorum code reuse.
+            # Cache any resolved value per model, keyed by base_url when
+            # present, else a synthetic bedrock:// key.
             cache_key_url = base_url or "bedrock://"
             cached = get_cached_context_length(model, cache_key_url)
             if cached is not None:

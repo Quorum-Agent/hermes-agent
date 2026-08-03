@@ -43,7 +43,10 @@ class TestHandleFunctionCall:
             patch("hermes_cli.plugins.has_hook", return_value=True),
             patch("hermes_cli.plugins.invoke_hook") as mock_invoke_hook,
         ):
-            handle_function_call("web_search", {"q": "test"}, task_id="t1")
+            # This test exercises hook timing, not network authorization. Use
+            # a local capability so Quorum's default Private policy does not
+            # correctly stop the dispatch before the hooks under test run.
+            handle_function_call("terminal", {"q": "test"}, task_id="t1")
 
         kwargs_by_hook = {
             c.args[0]: c.kwargs for c in mock_invoke_hook.call_args_list
@@ -98,7 +101,7 @@ class TestHandleFunctionCall:
 
         result = json.loads(
             handle_function_call(
-                "web_search",
+                "terminal",
                 {"q": "test"},
                 task_id="task-1",
                 tool_call_id="tool-1",

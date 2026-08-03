@@ -25,6 +25,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from product_identity import HOME_DIR_NAME
 from tools.environments.local import hermes_subprocess_env
 
 # Default minimum codex version we test against. The PR sets this from the
@@ -107,7 +108,10 @@ class CodexAppServerClient:
                 else spawn_env.get(
                     "HERMES_KANBAN_ROOT",
                     os.path.join(
-                        spawn_env.get("HERMES_HOME", os.path.expanduser("~/.hermes")),
+                        spawn_env.get(
+                            "HERMES_HOME",
+                            os.path.join(os.path.expanduser("~"), HOME_DIR_NAME),
+                        ),
                         "kanban",
                     ),
                 )

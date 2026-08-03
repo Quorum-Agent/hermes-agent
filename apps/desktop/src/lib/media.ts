@@ -2,6 +2,8 @@ import { readDesktopFileDataUrl } from '@/lib/desktop-fs'
 import { capitalize } from '@/lib/text'
 import { $connection } from '@/store/session'
 
+import { PRODUCT_IDENTITY } from '../../product-identity.mjs'
+
 export type MediaKind = 'audio' | 'image' | 'video' | 'file'
 
 interface MediaInfo {
@@ -123,7 +125,7 @@ export function mediaExternalUrl(path: string): string {
 // file with Range support. Used for audio/video so playback bypasses the data
 // URL size cap and supports seeking. `path` may be a plain path or `file://…`.
 export function mediaStreamUrl(path: string): string {
-  return `hermes-media://stream/${encodeURIComponent(filePathFromMediaPath(path))}`
+  return `${PRODUCT_IDENTITY.mediaProtocol}://stream/${encodeURIComponent(filePathFromMediaPath(path))}`
 }
 
 export function mediaPathFromMarkdownHref(href?: string): string | null {

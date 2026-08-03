@@ -1,5 +1,5 @@
 """
-Hermes Desktop (Chat GUI) uninstaller.
+Quorum Desktop (Chat GUI) uninstaller.
 
 The desktop GUI ships in two shapes and this module knows how to find and
 remove the artifacts of both, on Linux, macOS, and Windows, WITHOUT touching

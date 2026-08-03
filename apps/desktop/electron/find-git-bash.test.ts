@@ -42,6 +42,37 @@ test('HERMES_GIT_BASH_PATH empty string is ignored', () => {
   assert.equal(result, 'C:\\msys64\\usr\\bin\\bash.exe')
 })
 
+test('fresh Quorum install finds PortableGit from the active managed home despite stale process env', () => {
+  const managedHome = 'D:\\Profiles\\writer\\.quorum'
+  const portable = `${managedHome}\\git\\bin\\bash.exe`
+
+  const result = findGitBash({
+    isWindows: true,
+    env: {
+      LOCALAPPDATA: 'C:\\Users\\test\\AppData\\Local',
+      PATH: 'C:\\Windows\\System32'
+    },
+    managedHome,
+    fileExists: candidate => candidate === portable,
+    findOnPath: () => null
+  })
+
+  assert.equal(result, portable)
+})
+
+test('live User PATH is searched when the Electron process PATH is stale', () => {
+  const portable = 'C:\\Users\\test\\AppData\\Local\\quorum\\git\\bin\\bash.exe'
+
+  const result = findGitBash({
+    isWindows: true,
+    env: { Path: 'C:\\Windows\\System32;C:\\Users\\test\\AppData\\Local\\quorum\\git\\bin' },
+    fileExists: candidate => candidate === portable,
+    findOnPath: () => null
+  })
+
+  assert.equal(result, portable)
+})
+
 test('non-Windows uses findOnPath', () => {
   const result = findGitBash({
     isWindows: false,

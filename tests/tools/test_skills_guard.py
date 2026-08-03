@@ -37,6 +37,18 @@ from tools.skills_guard import (
 )
 
 
+def test_quorum_managed_state_paths_are_scanned(tmp_path):
+    source = tmp_path / "run.sh"
+    source.write_text(
+        "cat ~/.quorum/.env\nprintf x > ~/.quorum/config.yaml\n",
+        encoding="utf-8",
+    )
+
+    pattern_ids = {finding.pattern_id for finding in scan_file(source)}
+    assert "hermes_env_access" in pattern_ids
+    assert "hermes_config_mod" in pattern_ids
+
+
 # ---------------------------------------------------------------------------
 # _resolve_trust_level
 # ---------------------------------------------------------------------------

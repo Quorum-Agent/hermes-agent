@@ -62,6 +62,8 @@ from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, NamedTuple, Optional, Tuple, TYPE_CHECKING
 from urllib.parse import urlparse, parse_qs, urlunparse
 
+from product_identity import PRODUCT_NAME
+
 # NOTE: `from openai import OpenAI` is deliberately NOT at module top — the
 # openai SDK pulls a large type tree (~240 ms cold, including responses/*,
 # graders/*). We expose `OpenAI` here as a thin proxy that imports the SDK on
@@ -793,7 +795,7 @@ _PROVIDERS_WITHOUT_VISION: frozenset = frozenset({
 # reads; the previous `X-OpenRouter-Title` label was not recognized there.
 _OR_HEADERS_BASE = {
     "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-    "X-Title": "Hermes Agent",
+    "X-Title": PRODUCT_NAME,
     "X-OpenRouter-Categories": "productivity,cli-agent",
 }
 
@@ -914,7 +916,7 @@ from hermes_cli import __version__ as _HERMES_VERSION
 
 _AI_GATEWAY_HEADERS = {
     "HTTP-Referer": "https://hermes-agent.nousresearch.com",
-    "X-Title": "Hermes Agent",
+    "X-Title": PRODUCT_NAME,
     "User-Agent": f"HermesAgent/{_HERMES_VERSION}",
 }
 
@@ -2852,6 +2854,7 @@ def _relay_auxiliary_call(callback):
             "provider": "",
             "model": "",
             "api_mode": "chat_completions",
+            "base_url": "",
         })
         try:
             return callback(*args, **kwargs)
@@ -2877,6 +2880,7 @@ def _relay_auxiliary_call_async(callback):
             "provider": "",
             "model": "",
             "api_mode": "chat_completions",
+            "base_url": "",
         })
         try:
             return await callback(*args, **kwargs)
@@ -2893,6 +2897,7 @@ def _set_relay_auxiliary_route(
     provider: str | None,
     model: str | None,
     api_mode: str | None,
+    base_url: str | None = None,
 ) -> None:
     context = _RELAY_AUX_CALL_CONTEXT.get()
     if context is None:
@@ -2900,6 +2905,7 @@ def _set_relay_auxiliary_route(
     context["provider"] = str(provider or "auxiliary")
     context["model"] = str(model or "unknown")
     context["api_mode"] = str(api_mode or "chat_completions")
+    context["base_url"] = str(base_url or "")
 
 
 def _relay_auxiliary_metadata(
@@ -2916,6 +2922,7 @@ def _relay_auxiliary_metadata(
     model_name = str(context.get("model") or "unknown")
     return provider_name, model_name, {
         "api_mode": str(api_mode or context.get("api_mode") or "chat_completions"),
+        "base_url": str(context.get("base_url") or ""),
         "api_request_id": str(context["request_id"]),
         "call_role": f"auxiliary:{context['task']}",
         "retry_count": attempt_count,
@@ -2937,7 +2944,19 @@ def _relay_sync_completion(
     # aggregation.  The owning thread remains free to unwind its lease/DB
     # transaction on hard cancel without touching the process-shared client.
     if route is None:
-        return _run_protected_sync_provider_call(callback, kwargs)
+        from agent import relay_llm
+
+        return relay_llm.execute_current(
+            kwargs,
+            lambda request: _run_protected_sync_provider_call(callback, request),
+            name=str(provider or "auxiliary"),
+            model_name=str(kwargs.get("model") or "unknown"),
+            metadata={
+                "api_mode": str(api_mode or "chat_completions"),
+                "base_url": str(getattr(client, "base_url", "") or ""),
+                "call_role": "auxiliary:unscoped",
+            },
+        )
     provider_name, fallback_model, metadata = route
     from agent import relay_llm
 
@@ -2962,7 +2981,19 @@ async def _relay_async_completion(
     callback = create or (lambda request: client.chat.completions.create(**request))
     route = _relay_auxiliary_metadata(provider=provider, api_mode=api_mode)
     if route is None:
-        return await callback(kwargs)
+        from agent import relay_llm
+
+        return await relay_llm.execute_current_async(
+            kwargs,
+            callback,
+            name=str(provider or "auxiliary"),
+            model_name=str(kwargs.get("model") or "unknown"),
+            metadata={
+                "api_mode": str(api_mode or "chat_completions"),
+                "base_url": str(getattr(client, "base_url", "") or ""),
+                "call_role": "auxiliary:unscoped",
+            },
+        )
     provider_name, fallback_model, metadata = route
     from agent import relay_llm
 
@@ -2985,7 +3016,21 @@ def _relay_sync_stream(
 ) -> Any:
     route = _relay_auxiliary_metadata(provider=provider, api_mode=api_mode)
     if route is None:
-        return client.chat.completions.create(**kwargs)
+        from agent import relay_llm
+
+        return relay_llm.stream_current(
+            kwargs,
+            lambda request: client.chat.completions.create(**request),
+            name=str(provider or "auxiliary"),
+            model_name=str(kwargs.get("model") or "unknown"),
+            finalizer=dict,
+            metadata={
+                "api_mode": str(api_mode or "chat_completions"),
+                "base_url": str(getattr(client, "base_url", "") or ""),
+                "call_role": "auxiliary:unscoped",
+            },
+            completed_response_predicate=lambda value: hasattr(value, "choices"),
+        )
     provider_name, fallback_model, metadata = route
     from agent import relay_llm
 
@@ -8580,6 +8625,7 @@ def call_llm(
         resolved_provider,
         final_model,
         resolved_api_mode,
+        str(getattr(client, "base_url", resolved_base_url) or resolved_base_url or ""),
     )
 
     # Log what we're about to do — makes auxiliary operations visible
@@ -8624,10 +8670,18 @@ def call_llm(
             # and returns a completed response object. Routing that nested
             # MoA stream through Relay's generic managed stream makes the
             # manager iterate the completed SimpleNamespace itself (#55933).
-            # Return the provider call directly; the MoA facade converts a
-            # completed response into a one-chunk delta iterator at its
-            # boundary.
-            return client.chat.completions.create(**kwargs)
+            # Treat the internally-consumed Responses stream as a completed
+            # request.  It must still pass through Relay's final provider
+            # boundary so Quorum's mandatory dispatch policy cannot be
+            # bypassed by the MoA/Codex compatibility path.  The MoA facade
+            # converts the completed response into a one-chunk delta iterator
+            # at its boundary.
+            return _relay_sync_completion(
+                client,
+                kwargs,
+                provider=resolved_provider,
+                api_mode=resolved_api_mode,
+            )
         return _relay_sync_stream(
             client,
             kwargs,
@@ -9298,6 +9352,7 @@ async def async_call_llm(
         resolved_provider,
         final_model,
         resolved_api_mode,
+        str(getattr(client, "base_url", resolved_base_url) or resolved_base_url or ""),
     )
 
     # Pass the client's actual base_url (not just resolved_base_url) so

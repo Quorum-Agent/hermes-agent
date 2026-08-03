@@ -27,13 +27,15 @@
 
 import crypto from 'node:crypto'
 
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
+
 const LOCKFILE_SCHEMA_VERSION = 2
 // Bumped when the desktop<->dashboard reuse contract changes in a way that makes
 // an old running dashboard unsafe to reattach to (token handling, readiness/spawn
 // args, served-token reconciliation). A mismatch forces a clean respawn.
 const PROTOCOL_VERSION = 1
 const READY_RE = /^HERMES_(?:BACKEND|DASHBOARD)_READY port=(\d+)/m
-const REMOTE_LOCK_DIR = '~/.hermes/desktop-ssh'
+const REMOTE_LOCK_DIR = `~/${PRODUCT_IDENTITY.homeDirName}/desktop-ssh`
 const SUPPORTED_REMOTE_OS = new Set(['Linux', 'Darwin'])
 const DEFAULT_READY_TIMEOUT_MS = 45_000
 const READY_POLL_INTERVAL_MS = 750
@@ -165,7 +167,7 @@ async function locateHermes(ssh, remoteHermesPath) {
     }
 
     const err: any = new Error(
-      `The Hermes path you set is not an executable on the remote host: "${remoteHermesPath}". ` +
+      `The Quorum path you set is not an executable on the remote host: "${remoteHermesPath}". ` +
         'Check the path (it must be the full path to the `hermes` binary on the remote, e.g. ' +
         '~/hermes-agent/.venv/bin/hermes), or clear it to auto-detect.'
     )
@@ -174,7 +176,7 @@ async function locateHermes(ssh, remoteHermesPath) {
     throw err
   }
 
-  const candidates: string[] = []
+  const candidates: string[] = [`~/${PRODUCT_IDENTITY.homeDirName}/hermes-agent/venv/bin/hermes`]
 
   try {
     const found = (await ssh.exec(`bash -lc ${shq('command -v hermes')}`)).trim()
@@ -186,11 +188,10 @@ async function locateHermes(ssh, remoteHermesPath) {
     // ignore
   }
 
-  // Fallback candidates when the login-shell probe misses: the installer's
-  // command locations (scripts/install.sh) — per-user, root/FHS, legacy venv.
+  // Fallback candidates when the Quorum-managed venv and login-shell probe
+  // miss: the installer's per-user and root/FHS command locations.
   candidates.push('~/.local/bin/hermes')
   candidates.push('/usr/local/bin/hermes')
-  candidates.push('~/.hermes/hermes-agent/venv/bin/hermes')
 
   for (const candidate of candidates) {
     if (!candidate) {
@@ -203,9 +204,9 @@ async function locateHermes(ssh, remoteHermesPath) {
   }
 
   const err: any = new Error(
-    'Hermes is not installed on the remote host (could not find a `hermes` executable). ' +
-      'Install it on the remote with:  curl -fsSL https://hermes-agent.nousresearch.com/install.sh | sh  ' +
-      '— or set the Hermes path explicitly in the SSH connection settings.'
+    'Quorum is not installed on the remote host (could not find a Quorum `hermes` executable). ' +
+      `Install it on the remote with:  curl -fsSL ${PRODUCT_IDENTITY.rawSourceBaseUrl}/main/scripts/install.sh | bash  ` +
+      '— or set the Quorum path explicitly in the SSH connection settings.'
   )
 
   err.kind = 'hermes-not-found'
@@ -213,7 +214,7 @@ async function locateHermes(ssh, remoteHermesPath) {
 }
 
 // Probe the resolved binary's version string (first line of `<hermes> --version`,
-// e.g. "Hermes Agent v0.18.2 ..."), or '' on failure. Surfaces WHICH hermes a
+// e.g. "Quorum v0.19.1 ..."), or '' on failure. Surfaces WHICH distribution a
 // connection uses, so a stale/unexpected install is visible.
 async function probeHermesVersion(ssh, hermesPath) {
   try {
@@ -232,7 +233,7 @@ async function probeRemotePlatform(ssh) {
 
   if (!SUPPORTED_REMOTE_OS.has(osName)) {
     const err: any = new Error(
-      `Unsupported remote platform "${osName || 'unknown'}". Hermes Desktop SSH mode supports Linux, macOS, and Windows remote hosts.`
+      `Unsupported remote platform "${osName || 'unknown'}". Quorum Desktop SSH mode supports Linux and macOS remote hosts.`
     )
 
     err.kind = 'unsupported-platform'
@@ -243,13 +244,13 @@ async function probeRemotePlatform(ssh) {
 }
 
 // The HERMES_HOME the remote dashboard will use (explicit env wins, else
-// ~/.hermes). Recorded in the lockfile so a future reuse can tell it's the same
+// ~/.quorum). Recorded in the lockfile so a future reuse can tell it's the same
 // state store; best-effort.
 async function probeRemoteHermesHome(ssh) {
   try {
-    const out = (await ssh.exec('echo "${HERMES_HOME:-$HOME/.hermes}"')).trim().split('\n').pop()
+    const out = (await ssh.exec(`echo "\${HERMES_HOME:-$HOME/${PRODUCT_IDENTITY.homeDirName}}"`)).trim().split('\n').pop()
 
-    return out || '~/.hermes'
+    return out || `~/${PRODUCT_IDENTITY.homeDirName}`
   } catch (cause) {
     const error: any = new Error('Could not resolve the remote Hermes home.')
     error.kind = 'transient-transport-error'
@@ -696,6 +697,17 @@ async function connect(deps) {
   const hermesPath = await locateHermes(ssh, remoteHermesPath)
   log(`located hermes at ${hermesPath}`)
   const hermesVersion = await probeHermesVersion(ssh, hermesPath)
+
+  if (!hermesVersion.toLowerCase().startsWith(`${PRODUCT_IDENTITY.productName.toLowerCase()} v`)) {
+    const error: any = new Error(
+      `The remote executable at ${hermesPath} did not identify as Quorum. ` +
+        `Found: ${hermesVersion || 'no version response'}. Install Quorum Edition from ` +
+        `${PRODUCT_IDENTITY.rawSourceBaseUrl}/main/scripts/install.sh.`
+    )
+
+    error.kind = 'distribution-mismatch'
+    throw error
+  }
 
   if (hermesVersion) {
     log(`remote hermes version: ${hermesVersion}`)

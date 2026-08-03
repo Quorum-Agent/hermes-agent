@@ -36,6 +36,8 @@ import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
+import { PRODUCT_IDENTITY } from '../product-identity.mjs'
+
 const DEFAULT_CONNECT_TIMEOUT_MS = 15_000
 const DEFAULT_EXEC_TIMEOUT_MS = 20_000
 const DEFAULT_FORWARD_TIMEOUT_MS = 15_000
@@ -115,7 +117,7 @@ function redactSecrets(text) {
 // per-user `/var/folders/xx/yyyy…/T/` (~49 bytes), and OpenSSH binds a
 // TEMPORARY listener at `<ControlPath>.<16 random chars>` while establishing
 // the master — so a path that itself fits 104 still overflows at bind time. We
-// root under a short per-user base (`~/.hermes/desktop-ssh`) so even worst case
+// root under a short per-user base (`~/.quorum/desktop-ssh`) so even worst case
 // (~72 bytes on macOS) stays clear. Windows has no AF_UNIX sun_path limit.
 function controlSocketPath(user, host, port, baseDir?, identity: any = {}) {
   const dir = baseDir || defaultControlDir()
@@ -140,10 +142,10 @@ function defaultControlDir() {
   // POSIX: a SHORT, PER-USER base stays under the socket limit AND avoids a
   // world-shared /tmp dir (no symlink-hijack surface). Created 0700 in open().
   if (process.platform === 'win32') {
-    return path.join(os.tmpdir(), 'hermes-desktop-ssh')
+    return path.join(os.tmpdir(), `${PRODUCT_IDENTITY.productSlug}-desktop-ssh`)
   }
 
-  return path.join(os.homedir(), '.hermes', 'desktop-ssh')
+  return path.join(os.homedir(), PRODUCT_IDENTITY.homeDirName, 'desktop-ssh')
 }
 
 // Command construction (pure — the unit tests exercise these directly)

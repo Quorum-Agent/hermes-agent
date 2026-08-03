@@ -1,12 +1,12 @@
 #!/bin/bash
 # ============================================================================
-# Hermes Agent Installer
+# Quorum Edition Installer
 # ============================================================================
 # Installation script for Linux, macOS, and Android/Termux.
 # Uses uv for desktop/server installs and Python's stdlib venv + pip on Termux.
 #
 # Usage:
-#   curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.sh | bash
 #
 # Or with options:
 #   curl -fsSL ... | bash -s -- --no-venv --skip-setup
@@ -43,9 +43,20 @@ NC='\033[0m' # No Color
 BOLD='\033[1m'
 
 # Configuration
-REPO_URL_SSH="git@github.com:NousResearch/hermes-agent.git"
-REPO_URL_HTTPS="https://github.com/NousResearch/hermes-agent.git"
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+REPO_URL_SSH="git@github.com:Quorum-Agent/hermes-agent.git"
+REPO_URL_HTTPS="https://github.com/Quorum-Agent/hermes-agent.git"
+LEGACY_HERMES_HOME="${HERMES_HOME:-}"
+if [ -n "${QUORUM_HOME:-}" ]; then
+    HERMES_HOME="$QUORUM_HOME"
+    HERMES_HOME_EXPLICIT=true
+elif [ "${QUORUM_ALLOW_HERMES_HOME_MIGRATION:-0}" = "1" ] && [ -n "$LEGACY_HERMES_HOME" ]; then
+    HERMES_HOME="$LEGACY_HERMES_HOME"
+    HERMES_HOME_EXPLICIT=true
+else
+    HERMES_HOME="$HOME/.quorum"
+    HERMES_HOME_EXPLICIT=false
+fi
+export HERMES_HOME
 # INSTALL_DIR is resolved AFTER arg parsing and OS detection so we can pick an
 # FHS-style layout for root installs.  Track whether the user gave us an
 # explicit directory — if so we never override it.
@@ -58,10 +69,13 @@ else
 fi
 PYTHON_VERSION="3.11"
 NODE_VERSION="22"
+NODE_BOOTSTRAP_VERSION="22.22.0"
+UV_BOOTSTRAP_VERSION="0.9.28"
+UV_INSTALLER_SHA256="2206437df06d0fff515d0e95193cfc2f4c2719d4c82f569d70057bbf5c4caba7"
 
 # FHS-style root install layout (set by resolve_install_layout when applicable):
 #   code at /usr/local/lib/hermes-agent, command at /usr/local/bin/hermes,
-#   data still at /root/.hermes (HERMES_HOME).  Matches Claude Code / Codex CLI
+#   data still at /root/.quorum (HERMES_HOME).  Matches Claude Code / Codex CLI
 #   and keeps Docker bind-mounted /root/ volumes lean.
 ROOT_FHS_LAYOUT=false
 DETECTED_BROWSER_EXECUTABLE=""
@@ -149,6 +163,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --hermes-home)
             HERMES_HOME="$2"
+            HERMES_HOME_EXPLICIT=true
+            export HERMES_HOME
             shift 2
             ;;
         --ensure)
@@ -157,7 +173,7 @@ while [[ $# -gt 0 ]]; do
             ;;
 
         -h|--help)
-            echo "Hermes Agent Installer"
+            echo "Quorum Edition Installer"
             echo ""
             echo "Usage: install.sh [OPTIONS]"
             echo ""
@@ -176,19 +192,19 @@ while [[ $# -gt 0 ]]; do
             echo "  --stage NAME   Run one desktop bootstrap stage"
             echo "  --json         Print a JSON result frame for --stage"
             echo "  --non-interactive  Skip stages that require user input"
-            echo "  --include-desktop  Also build the desktop app (apps/desktop -> Hermes.app)"
+            echo "  --include-desktop  Also build the desktop app (apps/desktop -> Quorum.app)"
             echo "  --dir PATH     Installation directory"
-            echo "                   default (non-root):  ~/.hermes/hermes-agent"
+            echo "                   default (non-root):  ~/.quorum/hermes-agent"
             echo "                   default (root, Linux): /usr/local/lib/hermes-agent"
-            echo "  --hermes-home PATH  Data directory (default: ~/.hermes, or \$HERMES_HOME)"
+            echo "  --hermes-home PATH  Data directory (default: ~/.quorum, or \$HERMES_HOME)"
             echo "  -h, --help     Show this help"
             echo ""
             echo "Notes:"
-            echo "  When running as root on Linux, Hermes installs the code under"
+            echo "  When running as root on Linux, Quorum installs the code under"
             echo "  /usr/local/lib/hermes-agent and links the command into"
             echo "  /usr/local/bin/hermes (FHS layout — matches Claude Code / Codex CLI)."
             echo "  Data, config, sessions, and logs still live in \$HERMES_HOME"
-            echo "  (default /root/.hermes).  This keeps Docker bind-mounted volumes"
+            echo "  (default /root/.quorum).  This keeps Docker bind-mounted volumes"
             echo "  small and ensures the command is on PATH for all shells."
             echo "  Existing installs at \$HERMES_HOME/hermes-agent are preserved in-place."
             echo "  --ensure DEPS  Install only specified deps (comma-separated)"
@@ -204,6 +220,15 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+if [ "${QUORUM_ALLOW_HERMES_HOME_MIGRATION:-0}" != "1" ]; then
+    _quorum_home_compare="${HERMES_HOME%/}"
+    if [ "$_quorum_home_compare" = "${HOME%/}/.hermes" ]; then
+        echo "error: Quorum refuses to share stock Hermes state at $HERMES_HOME" >&2
+        echo "       Set QUORUM_ALLOW_HERMES_HOME_MIGRATION=1 only for an intentional migration." >&2
+        exit 1
+    fi
+fi
+
 # ============================================================================
 # Helper functions
 # ============================================================================
@@ -212,9 +237,9 @@ print_banner() {
     echo ""
     echo -e "${MAGENTA}${BOLD}"
     echo "┌─────────────────────────────────────────────────────────┐"
-    echo "│             ⚕ Hermes Agent Installer                    │"
+    echo "│             ⚕ Quorum Edition Installer                  │"
     echo "├─────────────────────────────────────────────────────────┤"
-    echo "│  An open source AI agent by Nous Research.              │"
+    echo "│  Based on Hermes Agent by Nous Research.                │"
     echo "└─────────────────────────────────────────────────────────┘"
     echo -e "${NC}"
 }
@@ -322,7 +347,7 @@ emit_manifest() {
     if [ "$INCLUDE_DESKTOP" = true ]; then
         desktop_stage='{"name":"desktop","title":"Build desktop app","category":"runtime","needs_user_input":false},'
     fi
-    printf '%s' '{"protocol_version":1,"stages":[{"name":"prerequisites","title":"System prerequisites","category":"runtime","needs_user_input":false},{"name":"repository","title":"Download Hermes Agent","category":"runtime","needs_user_input":false},{"name":"venv","title":"Create Python virtual environment","category":"runtime","needs_user_input":false},{"name":"python-deps","title":"Install Python dependencies","category":"runtime","needs_user_input":false},{"name":"node-deps","title":"Install browser-tool dependencies","category":"runtime","needs_user_input":false},{"name":"path","title":"Install hermes command","category":"runtime","needs_user_input":false},{"name":"config","title":"Prepare config and skills","category":"configuration","needs_user_input":false},{"name":"setup","title":"Configure API keys and settings","category":"configuration","needs_user_input":true},{"name":"gateway","title":"Configure gateway service","category":"configuration","needs_user_input":true},'"$desktop_stage"'{"name":"complete","title":"Finish install","category":"runtime","needs_user_input":false}]}'
+    printf '%s' '{"protocol_version":1,"stages":[{"name":"prerequisites","title":"System prerequisites","category":"runtime","needs_user_input":false},{"name":"repository","title":"Download Quorum Edition","category":"runtime","needs_user_input":false},{"name":"venv","title":"Create Python virtual environment","category":"runtime","needs_user_input":false},{"name":"python-deps","title":"Install Python dependencies","category":"runtime","needs_user_input":false},{"name":"node-deps","title":"Install browser-tool dependencies","category":"runtime","needs_user_input":false},{"name":"path","title":"Install hermes command","category":"runtime","needs_user_input":false},{"name":"config","title":"Prepare config and skills","category":"configuration","needs_user_input":false},{"name":"setup","title":"Configure API keys and settings","category":"configuration","needs_user_input":true},{"name":"gateway","title":"Configure gateway service","category":"configuration","needs_user_input":true},'"$desktop_stage"'{"name":"complete","title":"Finish install","category":"runtime","needs_user_input":false}]}'
     printf '\n'
 }
 
@@ -529,7 +554,7 @@ detect_os() {
             OS="windows"
             DISTRO="windows"
             log_error "Windows detected. Please use the PowerShell installer:"
-            log_info "  iex (irm https://hermes-agent.nousresearch.com/install.ps1)"
+            log_info "  iex (irm https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.ps1)"
             exit 1
             ;;
         *)
@@ -575,11 +600,23 @@ install_uv() {
     local _uv_install_log _uv_installer
     _uv_install_log="$(mktemp 2>/dev/null || echo "/tmp/hermes-uv-install.$$.log")"
     _uv_installer="$(mktemp 2>/dev/null || echo "/tmp/hermes-uv-installer.$$.sh")"
-    if ! curl -LsSf https://astral.sh/uv/install.sh -o "$_uv_installer" 2>"$_uv_install_log"; then
-        log_error "Failed to download uv installer from https://astral.sh/uv/install.sh"
+    local _uv_installer_url="https://github.com/astral-sh/uv/releases/download/${UV_BOOTSTRAP_VERSION}/uv-installer.sh"
+    if ! curl --proto '=https' --tlsv1.2 -LsSf "$_uv_installer_url" -o "$_uv_installer" 2>"$_uv_install_log"; then
+        log_error "Failed to download pinned uv installer $_uv_installer_url"
         log_info "curl output:"
         sed 's/^/    /' "$_uv_install_log" >&2
         log_info "Install manually: https://docs.astral.sh/uv/getting-started/installation/"
+        rm -f "$_uv_install_log" "$_uv_installer"
+        exit 1
+    fi
+    local _uv_actual_sha
+    if command -v sha256sum >/dev/null 2>&1; then
+        _uv_actual_sha="$(sha256sum "$_uv_installer" | awk '{print $1}')"
+    else
+        _uv_actual_sha="$(shasum -a 256 "$_uv_installer" | awk '{print $1}')"
+    fi
+    if [ "$_uv_actual_sha" != "$UV_INSTALLER_SHA256" ]; then
+        log_error "Pinned uv installer checksum verification failed"
         rm -f "$_uv_install_log" "$_uv_installer"
         exit 1
     fi
@@ -899,26 +936,8 @@ install_node() {
             ;;
     esac
 
-    # Resolve the latest v${NODE_VERSION}.x.x tarball name from the index page
-    local index_url="https://nodejs.org/dist/latest-v${NODE_VERSION}.x/"
-    local tarball_name
-    tarball_name=$(curl -fsSL "$index_url" \
-        | grep -oE "node-v${NODE_VERSION}\.[0-9]+\.[0-9]+-${node_os}-${node_arch}\.tar\.xz" \
-        | head -1)
-
-    # Fallback to .tar.gz if .tar.xz not available
-    if [ -z "$tarball_name" ]; then
-        tarball_name=$(curl -fsSL "$index_url" \
-            | grep -oE "node-v${NODE_VERSION}\.[0-9]+\.[0-9]+-${node_os}-${node_arch}\.tar\.gz" \
-            | head -1)
-    fi
-
-    if [ -z "$tarball_name" ]; then
-        log_warn "Could not find Node.js $NODE_VERSION binary for $node_os-$node_arch"
-        log_info "Install manually: https://nodejs.org/en/download/"
-        HAS_NODE=false
-        return 0
-    fi
+    local index_url="https://nodejs.org/dist/v${NODE_BOOTSTRAP_VERSION}/"
+    local tarball_name="node-v${NODE_BOOTSTRAP_VERSION}-${node_os}-${node_arch}.tar.xz"
 
     local download_url="${index_url}${tarball_name}"
     local tmp_dir
@@ -931,13 +950,28 @@ install_node() {
         HAS_NODE=false
         return 0
     fi
-
-    log_info "Extracting to ~/.hermes/node/..."
-    if [[ "$tarball_name" == *.tar.xz ]]; then
-        tar xf "$tmp_dir/$tarball_name" -C "$tmp_dir"
-    else
-        tar xzf "$tmp_dir/$tarball_name" -C "$tmp_dir"
+    if ! curl -fsSL "${index_url}SHASUMS256.txt" -o "$tmp_dir/SHASUMS256.txt"; then
+        log_error "Could not download the official Node.js checksum manifest"
+        rm -rf "$tmp_dir"
+        HAS_NODE=false
+        return 0
     fi
+    local expected_sha actual_sha
+    expected_sha="$(awk -v name="$tarball_name" '$2 == name {print $1}' "$tmp_dir/SHASUMS256.txt")"
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual_sha="$(sha256sum "$tmp_dir/$tarball_name" | awk '{print $1}')"
+    else
+        actual_sha="$(shasum -a 256 "$tmp_dir/$tarball_name" | awk '{print $1}')"
+    fi
+    if [ -z "$expected_sha" ] || [ "$actual_sha" != "$expected_sha" ]; then
+        log_error "Node.js archive checksum verification failed"
+        rm -rf "$tmp_dir"
+        HAS_NODE=false
+        return 0
+    fi
+
+    log_info "Extracting to $HERMES_HOME/node/..."
+    tar xf "$tmp_dir/$tarball_name" -C "$tmp_dir"
 
     local extracted_dir
     extracted_dir=$(ls -d "$tmp_dir"/node-v* 2>/dev/null | head -1)
@@ -949,7 +983,7 @@ install_node() {
         return 0
     fi
 
-    # Place into ~/.hermes/node/ and symlink binaries into the same bin dir
+    # Place into the active Quorum home and symlink binaries into its bin dir.
     # the hermes command uses (get_command_link_dir): /usr/local/bin for root
     # FHS installs, $PREFIX/bin on Termux, ~/.local/bin otherwise.
     rm -rf "$HERMES_HOME/node"
@@ -970,7 +1004,7 @@ install_node() {
 
     local installed_ver
     installed_ver=$("$HERMES_HOME/node/bin/node" --version 2>/dev/null)
-    log_success "Node.js $installed_ver installed to ~/.hermes/node/"
+    log_success "Node.js $installed_ver installed to $HERMES_HOME/node/"
     HAS_NODE=true
 }
 
@@ -1025,7 +1059,7 @@ check_network_prerequisites() {
         log_info "If mirrors are stale: termux-change-repo"
         log_info "Then test: curl -I https://pypi.org/simple/ && curl -I https://duckduckgo.com/"
     else
-        log_warn "Network checks failed. Hermes install may complete, but web search and dependency downloads can fail."
+        log_warn "Network checks failed. Quorum install may complete, but web search and dependency downloads can fail."
         log_info "Verify internet/DNS and retry if pip install fails."
     fi
 }
@@ -1225,6 +1259,21 @@ show_manual_install_hint() {
 # Installation
 # ============================================================================
 
+assert_quorum_origin() {
+    local repo="$1" origin
+    # Read the configured value instead of the rewritten transport URL. This
+    # keeps the ownership guard compatible with url.*.insteadOf mirrors.
+    origin="$(git -C "$repo" config --get remote.origin.url 2>/dev/null || true)"
+    case "$(printf '%s' "$origin" | tr '[:upper:]' '[:lower:]')" in
+        git@github.com:quorum-agent/hermes-agent.git|git@github.com:quorum-agent/hermes-agent|https://github.com/quorum-agent/hermes-agent.git|https://github.com/quorum-agent/hermes-agent)
+            return 0
+            ;;
+    esac
+    log_error "Refusing to update $repo because origin is not Quorum-Agent/hermes-agent."
+    log_error "Found origin: ${origin:-<missing>}"
+    return 1
+}
+
 clone_repo() {
     log_info "Installing to $INSTALL_DIR..."
 
@@ -1233,6 +1282,9 @@ clone_repo() {
     # have the initial commit yet" and fail the install (#40998). Move such a
     # partial checkout aside -- never delete it, in case it holds something the
     # user wants -- so the fresh-clone path below can proceed.
+    if [ -d "$INSTALL_DIR/.git" ]; then
+        assert_quorum_origin "$INSTALL_DIR" || exit 1
+    fi
     if [ -d "$INSTALL_DIR/.git" ] && ! git -C "$INSTALL_DIR" rev-parse --verify HEAD >/dev/null 2>&1; then
         backup_dir="${INSTALL_DIR}.broken-$(date -u +%Y%m%d-%H%M%S)"
         log_warn "Existing checkout at $INSTALL_DIR has no commits (interrupted clone)."
@@ -1365,6 +1417,7 @@ EOF
     fi
 
     cd "$INSTALL_DIR"
+    assert_quorum_origin "$INSTALL_DIR" || exit 1
 
     if [ -n "$INSTALL_COMMIT" ]; then
         # A commit pin must never move an existing install BACKWARDS. The
@@ -1395,6 +1448,25 @@ EOF
     fi
 
     log_success "Repository ready"
+}
+
+verify_quorum_runtime_identity() {
+    local launcher version
+    if [ -x "$INSTALL_DIR/venv/bin/hermes" ]; then
+        launcher="$INSTALL_DIR/venv/bin/hermes"
+    else
+        launcher="$(command -v hermes 2>/dev/null || true)"
+    fi
+    if [ -z "$launcher" ]; then
+        log_error "Quorum runtime launcher was not installed"
+        return 1
+    fi
+    version="$($launcher --version 2>&1 | head -1 || true)"
+    case "$version" in
+        "Quorum v"*) return 0 ;;
+    esac
+    log_error "Installed runtime identity verification failed: ${version:-no version response}"
+    return 1
 }
 
 setup_venv() {
@@ -1920,20 +1992,20 @@ EOF
 copy_config_templates() {
     log_info "Setting up configuration files..."
 
-    # Create ~/.hermes directory structure (config at top level, code in subdir)
+    # Create the Quorum home structure (config at top level, code in subdir).
     mkdir -p "$HERMES_HOME"/{cron,sessions,logs,pairing,hooks,image_cache,audio_cache,memories,skills}
 
-    # Create .env at ~/.hermes/.env (top level, easy to find)
+    # Create .env under the Quorum home (top level, easy to find).
     if [ ! -f "$HERMES_HOME/.env" ]; then
         if [ -f "$INSTALL_DIR/.env.example" ]; then
             cp "$INSTALL_DIR/.env.example" "$HERMES_HOME/.env"
-            log_success "Created ~/.hermes/.env from template"
+            log_success "Created $HERMES_HOME/.env from template"
         else
             touch "$HERMES_HOME/.env"
-            log_success "Created ~/.hermes/.env"
+            log_success "Created $HERMES_HOME/.env"
         fi
     else
-        log_info "~/.hermes/.env already exists, keeping it"
+        log_info "$HERMES_HOME/.env already exists, keeping it"
     fi
     # Restrict .env permissions — this file holds API keys and tokens.
     # 0600 ensures only the file owner can read/write, matching standard
@@ -1941,14 +2013,14 @@ copy_config_templates() {
     chmod 600 "$HERMES_HOME/.env"
     configure_browser_env_from_system_browser
 
-    # Create config.yaml at ~/.hermes/config.yaml (top level, easy to find)
+    # Create config.yaml under the Quorum home (top level, easy to find).
     if [ ! -f "$HERMES_HOME/config.yaml" ]; then
         if [ -f "$INSTALL_DIR/cli-config.yaml.example" ]; then
             cp "$INSTALL_DIR/cli-config.yaml.example" "$HERMES_HOME/config.yaml"
-            log_success "Created ~/.hermes/config.yaml from template"
+            log_success "Created $HERMES_HOME/config.yaml from template"
         fi
     else
-        log_info "~/.hermes/config.yaml already exists, keeping it"
+        log_info "$HERMES_HOME/config.yaml already exists, keeping it"
     fi
 
     # Create SOUL.md if it doesn't exist (global persona file).
@@ -1958,14 +2030,14 @@ copy_config_templates() {
     # here is self-healing, but keep them in sync to avoid a churn on first run.
     if [ ! -f "$HERMES_HOME/SOUL.md" ]; then
         cat > "$HERMES_HOME/SOUL.md" << 'SOUL_EOF'
-You are Hermes Agent, an intelligent AI assistant created by Nous Research. You are helpful, knowledgeable, and direct. You assist users with a wide range of tasks including answering questions, writing and editing code, analyzing information, creative work, and executing actions via your tools. You communicate clearly, admit uncertainty when appropriate, and prioritize being genuinely useful over being verbose unless otherwise directed below. Be targeted and efficient in your exploration and investigations.
+You are Quorum, an intelligent AI assistant based on Hermes Agent by Nous Research. You are helpful, knowledgeable, and direct. You assist users with a wide range of tasks including answering questions, writing and editing code, analyzing information, creative work, and executing actions via your tools. You communicate clearly, admit uncertainty when appropriate, and prioritize being genuinely useful over being verbose unless otherwise directed below. Be targeted and efficient in your exploration and investigations.
 SOUL_EOF
-        log_success "Created ~/.hermes/SOUL.md (edit to customize personality)"
+        log_success "Created $HERMES_HOME/SOUL.md (edit to customize personality)"
     fi
 
-    log_success "Configuration directory ready: ~/.hermes/"
+    log_success "Configuration directory ready: $HERMES_HOME/"
 
-    # Seed bundled skills into ~/.hermes/skills/ (manifest-based, one-time per skill)
+    # Seed bundled skills into the Quorum home (manifest-based, one-time per skill).
     if [ "$NO_SKILLS" = true ]; then
         # Blank-slate install: write the opt-out marker and skip seeding.
         # skills_sync.py and `hermes update` both honor this marker, so the
@@ -1977,14 +2049,14 @@ SOUL_EOF
         log_info "Skipping bundled skills (--no-skills). Wrote $HERMES_HOME/.no-bundled-skills"
         log_info "  Future 'hermes update' runs will not inject bundled skills. Delete the marker to opt back in."
     else
-        log_info "Syncing bundled skills to ~/.hermes/skills/ ..."
+        log_info "Syncing bundled skills to $HERMES_HOME/skills/ ..."
         if "$INSTALL_DIR/venv/bin/python" "$INSTALL_DIR/tools/skills_sync.py" 2>/dev/null; then
-            log_success "Skills synced to ~/.hermes/skills/"
+            log_success "Skills synced to $HERMES_HOME/skills/"
         else
             # Fallback: simple directory copy if Python sync fails
             if [ -d "$INSTALL_DIR/skills" ] && [ ! "$(ls -A "$HERMES_HOME/skills/" 2>/dev/null | grep -v '.bundled_manifest')" ]; then
                 cp -r "$INSTALL_DIR/skills/"* "$HERMES_HOME/skills/" 2>/dev/null || true
-                log_success "Skills copied to ~/.hermes/skills/"
+                log_success "Skills copied to $HERMES_HOME/skills/"
             fi
         fi
     fi
@@ -2519,7 +2591,7 @@ maybe_start_gateway() {
             fi
             nohup $HERMES_CMD gateway > "$HERMES_HOME/logs/gateway.log" 2>&1 &
             GATEWAY_PID=$!
-            log_success "Gateway started (PID $GATEWAY_PID). Logs: ~/.hermes/logs/gateway.log"
+            log_success "Gateway started (PID $GATEWAY_PID). Logs: $HERMES_HOME/logs/gateway.log"
             log_info "To stop: kill $GATEWAY_PID"
             log_info "To restart later: hermes gateway"
             if [ "$DISTRO" = "termux" ]; then
@@ -2532,7 +2604,7 @@ maybe_start_gateway() {
 }
 
 write_bootstrap_marker() {
-    # Writes $INSTALL_DIR/.hermes-bootstrap-complete, which tells the Hermes
+    # Writes $INSTALL_DIR/.hermes-bootstrap-complete, which tells the desktop
     # desktop app (apps/desktop/electron/main.ts) and the macOS launcher fast
     # path (apps/bootstrap-installer) "a real install finished here -- don't
     # re-run first-run bootstrap."
@@ -3076,16 +3148,16 @@ install_desktop() {
 
     local app=""
     if [ "$OS" = "linux" ]; then
-        if [ -x "$desktop_dir/release/linux-unpacked/Hermes" ]; then
-            app="$desktop_dir/release/linux-unpacked/Hermes"
-        elif [ -x "$desktop_dir/release/linux-unpacked/hermes" ]; then
-            app="$desktop_dir/release/linux-unpacked/hermes"
+        if [ -x "$desktop_dir/release/linux-unpacked/Quorum" ]; then
+            app="$desktop_dir/release/linux-unpacked/Quorum"
+        elif [ -x "$desktop_dir/release/linux-unpacked/quorum" ]; then
+            app="$desktop_dir/release/linux-unpacked/quorum"
         fi
     else
         local cand
         for cand in \
-            "$desktop_dir/release/mac-arm64/Hermes.app" \
-            "$desktop_dir/release/mac/Hermes.app"; do
+            "$desktop_dir/release/mac-arm64/Quorum.app" \
+            "$desktop_dir/release/mac/Quorum.app"; do
             if [ -d "$cand" ]; then
                 app="$cand"
                 break
@@ -3262,6 +3334,7 @@ run_stage_body() {
         complete)
             detect_os
             resolve_install_layout
+            verify_quorum_runtime_identity
             print_success
             write_bootstrap_marker
             # Code-scoped stamp: write next to the install tree, not into
@@ -3347,6 +3420,7 @@ main() {
         install_desktop
     fi
 
+    verify_quorum_runtime_identity
     print_success
 
     write_bootstrap_marker

@@ -38,6 +38,8 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from product_identity import PRODUCT_NAME
+
 # Match ``https://meet.google.com/abc-defg-hij`` or ``.../lookup/...`` — the
 # short three-segment code or a lookup URL. Anything else is rejected.
 MEET_URL_RE = re.compile(
@@ -449,7 +451,7 @@ def run_bot() -> int:  # noqa: C901 — orchestration, explicit branches
     out_dir_env = os.environ.get("HERMES_MEET_OUT_DIR", "").strip()
     headed = os.environ.get("HERMES_MEET_HEADED", "").lower() in {"1", "true", "yes"}
     auth_state = os.environ.get("HERMES_MEET_AUTH_STATE", "").strip()
-    guest_name = os.environ.get("HERMES_MEET_GUEST_NAME", "Hermes Agent")
+    guest_name = os.environ.get("HERMES_MEET_GUEST_NAME", PRODUCT_NAME)
     duration_s = _parse_duration(os.environ.get("HERMES_MEET_DURATION", ""))
     # v2: optional realtime mode. Enabled when HERMES_MEET_MODE=realtime.
     mode = os.environ.get("HERMES_MEET_MODE", "transcribe").strip().lower()
@@ -818,7 +820,9 @@ def _looks_like_human_speaker(speaker: str, bot_guest_name: str) -> bool:
     if not speaker or not speaker.strip():
         return False
     spk = speaker.strip().lower()
-    if spk in {"unknown", "you", bot_guest_name.strip().lower()}:
+    # Preserve both edition names as echo aliases so an upgraded meeting whose
+    # display name has not refreshed cannot barge in on its own audio.
+    if spk in {"unknown", "you", "hermes agent", "quorum", bot_guest_name.strip().lower()}:
         return False
     return True
 

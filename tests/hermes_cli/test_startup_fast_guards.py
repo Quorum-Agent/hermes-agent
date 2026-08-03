@@ -76,29 +76,29 @@ def _run_version(env_overrides: dict) -> subprocess.CompletedProcess:
 
 
 def test_fast_version_parity_off_termux(tmp_path):
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".quorum"
     home.mkdir()
     result = _run_version({"HERMES_HOME": str(home), "TERMUX_VERSION": ""})
     assert result.returncode == 0, result.stderr
     out = result.stdout
-    for field in ("Hermes Agent v", "Install directory:", "Python:", "OpenAI SDK:"):
+    for field in ("Quorum v", "Install directory:", "Python:", "OpenAI SDK:"):
         assert field in out, f"fast --version output missing {field!r}:\n{out}"
 
 
 def test_fast_version_parity_on_termux(tmp_path):
     """The historical Termux path — the one eb4040242 broke."""
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".quorum"
     home.mkdir()
     result = _run_version(
         {"HERMES_HOME": str(home), "TERMUX_VERSION": "0.118"}
     )
     assert result.returncode == 0, result.stderr
-    assert "Hermes Agent v" in result.stdout
+    assert "Quorum v" in result.stdout
     assert "Traceback" not in result.stderr
 
 
 def test_fast_version_reports_install_method_stamp(tmp_path):
-    home = tmp_path / ".hermes"
+    home = tmp_path / ".quorum"
     home.mkdir()
     (home / ".install_method").write_text("git\n", encoding="utf-8")
     result = _run_version({"HERMES_HOME": str(home), "TERMUX_VERSION": ""})

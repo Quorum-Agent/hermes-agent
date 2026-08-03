@@ -31,8 +31,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Tuple
 
+from product_identity import HOME_DIR_NAME
+
 
 SCANNER_VERSION = "skills-guard-v1"
+_MANAGED_HOME_RE = rf"(?:{re.escape(HOME_DIR_NAME)}|\.hermes)"
 
 
 
@@ -135,7 +138,7 @@ THREAT_PATTERNS = [
     (r'\$HOME/\.docker|\~/\.docker',
      "docker_dir_access", "high", "exfiltration",
      "references Docker config (may contain registry creds)"),
-    (r'\$HOME/\.hermes/\.env|\~/\.hermes/\.env',
+    (rf'\$HOME/{_MANAGED_HOME_RE}/\.env|\~/{_MANAGED_HOME_RE}/\.env',
      "hermes_env_access", "critical", "exfiltration",
      "directly references Hermes secrets file"),
     # Match `cat <secrets-file>` (reading credentials) but NOT `cat > <file>`
@@ -461,7 +464,7 @@ THREAT_PATTERNS = [
     (r'AGENTS\.md|CLAUDE\.md|\.cursorrules|\.clinerules',
      "agent_config_mod", "critical", "persistence",
      "references agent config files (could persist malicious instructions across sessions)"),
-    (r'\.hermes/config\.yaml|\.hermes/SOUL\.md',
+    (rf'{_MANAGED_HOME_RE}/config\.yaml|{_MANAGED_HOME_RE}/SOUL\.md',
      "hermes_config_mod", "critical", "persistence",
      "references Hermes configuration files directly"),
     (r'\.claude/settings|\.codex/config',

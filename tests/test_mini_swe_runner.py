@@ -1,6 +1,22 @@
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _permissive_quorum_dispatch(monkeypatch):
+    from agent import quorum_dispatch
+
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_load_settings",
+        lambda: quorum_dispatch.DispatchSettings(
+            default_policy="balanced",
+            cloud_consent=True,
+        ),
+    )
+
 
 def test_run_task_kimi_omits_temperature():
     """Kimi models should NOT have client-side temperature overrides.
@@ -9,6 +25,7 @@ def test_run_task_kimi_omits_temperature():
     """
     with patch("openai.OpenAI") as mock_openai:
         client = MagicMock()
+        client.base_url = "https://api.kimi.com/coding/v1"
         client.chat.completions.create.return_value = SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content="done", tool_calls=[]))]
         )
@@ -30,6 +47,38 @@ def test_run_task_kimi_omits_temperature():
 
     assert result["completed"] is True
     assert "temperature" not in client.chat.completions.create.call_args.kwargs
+
+
+def test_run_task_private_policy_never_invokes_remote_provider(monkeypatch):
+    from agent import quorum_dispatch
+
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_load_settings",
+        lambda: quorum_dispatch.DispatchSettings(default_policy="private"),
+    )
+
+    with patch("openai.OpenAI") as mock_openai:
+        client = MagicMock()
+        client.base_url = "https://api.example.com/v1"
+        mock_openai.return_value = client
+
+        from mini_swe_runner import MiniSWERunner
+
+        runner = MiniSWERunner(
+            model="remote-model",
+            base_url="https://api.example.com/v1",
+            api_key="test-key",
+            env_type="local",
+            max_iterations=1,
+        )
+        runner._create_env = MagicMock()
+        runner._cleanup_env = MagicMock()
+
+        result = runner.run_task("private task")
+
+    assert result["completed"] is False
+    client.chat.completions.create.assert_not_called()
 
 
 def test_run_task_public_moonshot_kimi_k2_5_omits_temperature():

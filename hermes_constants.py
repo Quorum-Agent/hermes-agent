@@ -11,6 +11,8 @@ import sys
 from contextvars import ContextVar, Token
 from pathlib import Path
 
+from product_identity import HOME_DIR_NAME, RAW_SOURCE_BASE_URL, WINDOWS_HOME_DIR_NAME
+
 
 _profile_fallback_warned: bool = False
 _UNSET = object()
@@ -51,12 +53,12 @@ def get_hermes_home_override() -> str | None:
 
 
 def _get_platform_default_hermes_home() -> Path:
-    """Return the platform-native default Hermes home path."""
+    """Return the platform-native Quorum Edition runtime home path."""
     if sys.platform == "win32":
         local_appdata = os.environ.get("LOCALAPPDATA", "").strip()
         base = Path(local_appdata) if local_appdata else Path.home() / "AppData" / "Local"
-        return base / "hermes"
-    return Path.home() / ".hermes"
+        return base / WINDOWS_HOME_DIR_NAME
+    return Path.home() / HOME_DIR_NAME
 
 
 def _hermes_home_from_env() -> Path:
@@ -318,6 +320,7 @@ def _candidate_node_command_names(command: str) -> list[str]:
 
 
 _HERMES_NODE_TARGET_MAJOR = int(os.environ.get("HERMES_NODE_TARGET_MAJOR", "22"))
+_HERMES_NODE_BOOTSTRAP_VERSION = "22.22.0"
 _managed_node_heal_attempted = False
 _NODE_BOOTSTRAP_SCRIPT = Path(__file__).resolve().parent / "scripts" / "lib" / "node-bootstrap.sh"
 
@@ -378,6 +381,7 @@ def hermes_managed_node_tree_present(home: Path | None = None) -> bool:
 
 def _heal_managed_node_windows() -> bool:
     """Redownload the portable Node zip into ``%HERMES_HOME%\\node`` on Windows."""
+    import hashlib
     import re
     import tempfile
     import urllib.request
@@ -394,26 +398,19 @@ def _heal_managed_node_windows() -> bool:
         return False
 
     home = get_hermes_home()
-    index_url = f"https://nodejs.org/dist/latest-v{_HERMES_NODE_TARGET_MAJOR}.x/"
-    try:
-        with urllib.request.urlopen(index_url, timeout=60) as response:
-            index_html = response.read().decode("utf-8", errors="replace")
-    except OSError:
-        return False
-
-    match = re.search(
-        rf"node-v{_HERMES_NODE_TARGET_MAJOR}\.\d+\.\d+-win-{node_arch}\.zip",
-        index_html,
-    )
-    if not match:
-        return False
-
-    zip_name = match.group(0)
+    index_url = f"https://nodejs.org/dist/v{_HERMES_NODE_BOOTSTRAP_VERSION}/"
+    zip_name = f"node-v{_HERMES_NODE_BOOTSTRAP_VERSION}-win-{node_arch}.zip"
     download_url = f"{index_url}{zip_name}"
     try:
+        with urllib.request.urlopen(f"{index_url}SHASUMS256.txt", timeout=60) as response:
+            checksums = response.read().decode("ascii", errors="strict")
         with urllib.request.urlopen(download_url, timeout=300) as response:
             zip_bytes = response.read()
-    except OSError:
+    except (OSError, UnicodeDecodeError):
+        return False
+
+    match = re.search(rf"(?m)^([0-9a-f]{{64}})\s+{re.escape(zip_name)}$", checksums)
+    if not match or not hashlib.sha256(zip_bytes).hexdigest() == match.group(1):
         return False
 
     try:
@@ -556,8 +553,8 @@ def _managed_node_tree_outdated(home: Path | None = None) -> bool:
 
     An outdated managed Node (e.g. a 22 tree from an older install) heals the
     same way a broken one does: :func:`find_hermes_node_executable` triggers
-    the once-per-process heal, which redownloads
-    ``latest-v{_HERMES_NODE_TARGET_MAJOR}.x`` — so existing users are upgraded
+    the once-per-process heal, which downloads the pinned, checksum-verified
+    ``_HERMES_NODE_BOOTSTRAP_VERSION`` — so existing users are upgraded
     on next launch, not just on the next installer re-run. Mirrors
     ``_nb_managed_node_outdated`` in ``scripts/lib/node-bootstrap.sh``.
     """
@@ -1477,5 +1474,5 @@ def partial_update_hint(exc: BaseException) -> list[str]:
         "and a related one was not.",
         "Re-run the update to bring the whole tree to the same version:",
         "    hermes update",
-        "If that also fails, reinstall: https://hermes-agent.nousresearch.com",
+        f"If that also fails, reinstall: {RAW_SOURCE_BASE_URL}/main/scripts/install.sh",
     ]
