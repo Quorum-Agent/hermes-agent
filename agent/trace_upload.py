@@ -32,6 +32,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+from hermes_constants import display_hermes_home
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_DATASET_NAME = "hermes-traces"
@@ -258,7 +260,7 @@ _NO_TOKEN_MESSAGE = (
     "\n"
     "1. Create a token with WRITE access at https://huggingface.co/settings/tokens\n"
     "   (New token -> type \"Write\" -> copy it).\n"
-    "2. Add it to your environment as HF_TOKEN (e.g. in ~/.hermes/.env):\n"
+    f"2. Add it to your environment as HF_TOKEN (e.g. in {display_hermes_home()}/.env):\n"
     "     HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx\n"
     "3. Run /upload-trace again (or `hermes trace upload`)."
 )

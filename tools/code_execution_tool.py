@@ -2016,9 +2016,10 @@ def build_execute_code_schema(enabled_sandbox_tools: set = None,
     # terminal()'s filesystem/interpreter; strict mode retains the isolated
     # temp-dir staging and hermes-agent's own python.
     if mode == "strict":
+        from product_identity import HOME_DIR_NAME
         cwd_note = (
             "Scripts run in their own temp dir, not the session's CWD — use absolute paths "
-            "(os.path.expanduser('~/.hermes/.env')) or terminal()/read_file() for user files."
+            f"(os.path.expanduser('~/{HOME_DIR_NAME}/.env')) or terminal()/read_file() for user files."
         )
     else:
         cwd_note = (

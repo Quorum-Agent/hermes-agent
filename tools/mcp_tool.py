@@ -3924,10 +3924,11 @@ def _handle_auth_error_and_retry(
     # needs_reauth error. Bumps the circuit breaker so the model stops
     # retrying the tool.
     _bump_server_error(server_name)
+    from hermes_constants import display_hermes_home
     return tool_error(
         f"MCP server '{server_name}' requires re-authentication. "
         f"Run `hermes mcp login {server_name}` (or delete the tokens "
-        f"file under ~/.hermes/mcp-tokens/ and restart). Do NOT retry "
+        f"file under {display_hermes_home()}/mcp-tokens/ and restart). Do NOT retry "
         f"this tool — ask the user to re-authenticate.",
         needs_reauth=True,
         server=server_name,

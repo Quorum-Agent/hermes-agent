@@ -380,6 +380,7 @@ def apply_proposals(proposals: list[Proposal], indices: list[int]) -> set:
 
 
 def _render_text(proposals: list[Proposal], days: int) -> None:
+    from hermes_constants import display_hermes_home
     window = "all history" if days <= 0 else f"last {days} days"
     if not proposals:
         print(
@@ -400,12 +401,13 @@ def _render_text(proposals: list[Proposal], days: int) -> None:
     print(
         "\nNothing has been changed. Apply selected entries with:\n"
         "  hermes approvals suggest --apply 1,3\n"
-        "Entries are merged into command_allowlist in ~/.hermes/config.yaml."
+        f"Entries are merged into command_allowlist in {display_hermes_home()}/config.yaml."
     )
 
 
 def suggest_command(args) -> int:
     """Entry point for ``hermes approvals suggest``."""
+    from hermes_constants import display_hermes_home
     db_path = Path(args.db) if getattr(args, "db", None) else default_db_path()
     days = getattr(args, "days", 90)
     if not db_path.exists():
@@ -439,7 +441,7 @@ def suggest_command(args) -> int:
             for pattern in applied:
                 print(f"  + {pattern}")
             print(f"\ncommand_allowlist now has {len(merged)} entries "
-                  "(~/.hermes/config.yaml).")
+                  f"({display_hermes_home()}/config.yaml).")
         return 0
 
     if getattr(args, "json", False):
