@@ -138,7 +138,7 @@ def _get_process_hermes_home() -> Path:
     profile directory when a profile-context task happens to be active at write
     time.  See issue #56986.
     """
-    val = os.environ.get("HERMES_HOME", "").strip()
+    val = (os.environ.get("QUORUM_HOME") or os.environ.get("HERMES_HOME") or "").strip()
     if val:
         return Path(val)
     return _get_platform_default_hermes_home()

@@ -60,7 +60,7 @@ _LOW_MEM_AVAILABLE_FRACTION = 0.05  # < 5% of MemTotal available
 
 def _process_hermes_home() -> Path:
     """HERMES_HOME for process-level identity files (ignore task overrides)."""
-    val = os.environ.get("HERMES_HOME", "").strip()
+    val = (os.environ.get("QUORUM_HOME") or os.environ.get("HERMES_HOME") or "").strip()
     if val:
         return Path(val)
     from hermes_constants import get_hermes_home

@@ -211,7 +211,7 @@ def start_loop_liveness_watchdog(
 
 def _process_hermes_home() -> Path:
     """HERMES_HOME for process-level identity files (ignore profile overrides)."""
-    val = os.environ.get("HERMES_HOME", "").strip()
+    val = (os.environ.get("QUORUM_HOME") or os.environ.get("HERMES_HOME") or "").strip()
     if val:
         return Path(val)
     return get_hermes_home()
