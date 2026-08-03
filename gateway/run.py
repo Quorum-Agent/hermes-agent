@@ -26702,8 +26702,10 @@ def main():
         pass
 
     import argparse
-    
-    parser = argparse.ArgumentParser(description="Hermes Gateway - Multi-platform messaging")
+
+    from product_identity import PRODUCT_NAME
+
+    parser = argparse.ArgumentParser(description=f"{PRODUCT_NAME} Gateway - Multi-platform messaging")
     parser.add_argument("--config", "-c", help="Path to gateway config file")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     

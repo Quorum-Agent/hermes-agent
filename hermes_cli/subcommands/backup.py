@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_backup_parser(subparsers, *, cmd_backup: Callable) -> None:
     """Attach the ``backup`` subcommand to ``subparsers``."""
@@ -16,8 +18,8 @@ def build_backup_parser(subparsers, *, cmd_backup: Callable) -> None:
     # =========================================================================
     backup_parser = subparsers.add_parser(
         "backup",
-        help="Back up Hermes home directory to a zip file",
-        description="Create a zip archive of your entire Hermes configuration, "
+        help=f"Back up {PRODUCT_NAME} home directory to a zip file",
+        description=f"Create a zip archive of your entire {PRODUCT_NAME} configuration, "
         "skills, sessions, and data (excludes the hermes-agent codebase). "
         "Use --quick for a fast snapshot of just critical state files.",
     )

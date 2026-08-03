@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from product_identity import HOME_DIR_NAME
+from product_identity import HOME_DIR_NAME, PRODUCT_NAME
 
 
 def build_claw_parser(subparsers, *, cmd_claw: Callable) -> None:
@@ -16,14 +16,14 @@ def build_claw_parser(subparsers, *, cmd_claw: Callable) -> None:
     claw_parser = subparsers.add_parser(
         "claw",
         help="OpenClaw migration tools",
-        description="Migrate settings, memories, skills, and API keys from OpenClaw to Hermes",
+        description=f"Migrate settings, memories, skills, and API keys from OpenClaw to {PRODUCT_NAME}",
     )
     claw_subparsers = claw_parser.add_subparsers(dest="claw_action")
 
     # claw migrate
     claw_migrate = claw_subparsers.add_parser(
         "migrate",
-        help="Migrate from OpenClaw to Hermes",
+        help=f"Migrate from OpenClaw to {PRODUCT_NAME}",
         description="Import settings, memories, skills, and API keys from an OpenClaw installation. "
         "Always shows a preview before making changes.",
     )
