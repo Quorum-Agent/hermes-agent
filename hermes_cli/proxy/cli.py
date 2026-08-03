@@ -14,6 +14,7 @@ from hermes_cli.proxy.server import (
     DEFAULT_PORT,
     run_server,
 )
+from product_identity import PRODUCT_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def cmd_proxy_start(args: Any) -> int:
     port = getattr(args, "port", None) or DEFAULT_PORT
 
     print(
-        f"Starting Hermes proxy for {adapter.display_name}\n"
+        f"Starting {PRODUCT_NAME} proxy for {adapter.display_name}\n"
         f"  Listening on:  http://{host}:{port}/v1\n"
         f"  Forwarding to: (resolved per-request from your subscription)\n"
         f"  Use any bearer token in the client — the proxy attaches your real credential.\n"
@@ -75,7 +76,7 @@ def cmd_proxy_start(args: Any) -> int:
 
 def cmd_proxy_status(args: Any) -> int:
     """Print the status of each configured upstream adapter."""
-    print("Hermes proxy upstream adapters\n")
+    print(f"{PRODUCT_NAME} proxy upstream adapters\n")
     for name in sorted(ADAPTERS):
         adapter = get_adapter(name)
         if not adapter.is_authenticated():

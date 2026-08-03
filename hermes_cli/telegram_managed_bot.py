@@ -18,6 +18,8 @@ from typing import Optional
 
 import httpx
 
+from product_identity import PRODUCT_NAME
+
 # Default pairing API base URL (Nous-hosted Cloudflare Worker).
 # Override for PoC/staging with TELEGRAM_ONBOARDING_URL.
 DEFAULT_API_URL = "https://setup.hermes-agent.nousresearch.com"
@@ -286,11 +288,11 @@ def auto_setup_telegram_bot_result(
     _ = manager_bot, profile_name
     resolved_api_url = _api_url(api_url)
     print()
-    print(f"  Contacting Hermes Telegram onboarding service: {resolved_api_url}")
+    print(f"  Contacting {PRODUCT_NAME} Telegram onboarding service: {resolved_api_url}")
     sys.stdout.flush()
     pairing = create_pairing(resolved_api_url)
     if not pairing:
-        print("  ✗ Could not reach the Hermes Telegram onboarding service.")
+        print(f"  ✗ Could not reach the {PRODUCT_NAME} Telegram onboarding service.")
         print("    Try the manual setup instead, or check your network.")
         return None
 

@@ -38,7 +38,7 @@ from typing import Optional
 
 from hermes_cli.config import get_hermes_home
 from hermes_constants import venv_python_path
-from product_identity import RAW_SOURCE_BASE_URL, SOURCE_REPOSITORY, SOURCE_REPO_SSH_URL, SOURCE_REPO_URL
+from product_identity import PRODUCT_NAME, RAW_SOURCE_BASE_URL, SOURCE_REPOSITORY, SOURCE_REPO_SSH_URL, SOURCE_REPO_URL
 
 logger = logging.getLogger(__name__)
 
@@ -1242,7 +1242,7 @@ def _restore_stashed_changes(
         print(
             "  Restoring them may reapply local customizations onto the updated codebase."
         )
-        print("  Review the result afterward if Hermes behaves unexpectedly.")
+        print(f"  Review the result afterward if {PRODUCT_NAME} behaves unexpectedly.")
         print("Restore local changes now? [Y/n]")
         if input_fn is not None:
             response = input_fn("Restore local changes now? [Y/n]", "y")
@@ -1345,7 +1345,7 @@ def _restore_stashed_changes(
             _print_stash_cleanup_guidance(stash_ref, stash_selector)
 
     print("⚠ Local changes were restored on top of the updated codebase.")
-    print("  Review `git diff` / `git status` if Hermes behaves unexpectedly.")
+    print(f"  Review `git diff` / `git status` if {PRODUCT_NAME} behaves unexpectedly.")
     return True
 
 def _discard_stashed_changes(
@@ -3917,7 +3917,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
                     print("✓ Dependencies repaired!")
                 else:
                     print(f"⚠ Venv still unhealthy after repair: {detail_after}")
-                    print("  Close all Hermes windows/gateways and re-run: hermes update")
+                    print(f"  Close all {PRODUCT_NAME} windows/gateways and re-run: hermes update")
             else:
                 print("✓ Already up to date!")
             if runtime_repaired is not None and not _m()._is_windows():
