@@ -122,7 +122,7 @@ class TestSlackFullManifest:
 
 
     def test_assistant_features_remain_enabled(self):
-        manifest = _build_full_manifest("Hermes", "Your Hermes agent on Slack")
+        manifest = _build_full_manifest("Quorum", "Your Quorum agent on Slack")
 
         assert "assistant_view" in manifest["features"]
         assert "agent_view" not in manifest["features"]
@@ -136,7 +136,7 @@ class TestSlackFullManifest:
     def test_no_assistant_preserves_core_surface(self):
         """Dropping assistant mode must NOT strip the regular messaging surface."""
         manifest = _build_full_manifest(
-            "Hermes", "Your Hermes agent on Slack", include_assistant=False
+            "Quorum", "Your Quorum agent on Slack", include_assistant=False
         )
 
         # Flat DM still needs the Messages tab writable.

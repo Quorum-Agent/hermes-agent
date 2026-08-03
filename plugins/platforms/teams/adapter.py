@@ -1402,6 +1402,7 @@ def interactive_setup() -> None:
         print_warning,
     )
     from hermes_constants import display_hermes_home
+    from product_identity import PRODUCT_NAME
 
     existing_id = get_env_value("TEAMS_CLIENT_ID")
     if existing_id:
@@ -1415,7 +1416,7 @@ def interactive_setup() -> None:
     print()
     print_info("Then expose port 3978 publicly (devtunnel / ngrok / cloudflared),")
     print_info("and create your bot:")
-    print_info("  teams app create --name \"Hermes\" --endpoint \"https://<tunnel>/api/messages\"")
+    print_info(f"  teams app create --name \"{PRODUCT_NAME}\" --endpoint \"https://<tunnel>/api/messages\"")
     print()
     print_info("The CLI will print CLIENT_ID, CLIENT_SECRET, and TENANT_ID. Paste them below.")
     print()

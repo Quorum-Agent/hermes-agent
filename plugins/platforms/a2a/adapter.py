@@ -57,6 +57,8 @@ from gateway.config import Platform
 
 from . import protocol, security
 
+from product_identity import PRODUCT_NAME
+
 logger = logging.getLogger(__name__)
 
 _DEFAULT_PORT = 9900
@@ -503,7 +505,7 @@ class A2AAdapter(BasePlatformAdapter):
         agents: dict[str, dict] = {}
         default_desc = os.getenv(
             "A2A_AGENT_DESCRIPTION",
-            "Hermes Agent — a general-purpose agent reachable over A2A.",
+            f"{PRODUCT_NAME} Agent — a general-purpose agent reachable over A2A.",
         )
         agents[""] = {
             "slug": "",
@@ -608,7 +610,7 @@ class A2AAdapter(BasePlatformAdapter):
         return protocol.build_agent_card(
             name=agent.get("name") or self.agent_name,
             url=url,
-            description=agent.get("description") or "Hermes Agent — a general-purpose agent reachable over A2A.",
+            description=agent.get("description") or f"{PRODUCT_NAME} Agent — a general-purpose agent reachable over A2A.",
             skills=self._advertised_skills(agent),
             streaming=bool(agent.get("local", True)),
             push_notifications=True,

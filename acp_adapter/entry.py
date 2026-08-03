@@ -36,7 +36,7 @@ import os
 import sys
 from pathlib import Path
 from hermes_constants import get_hermes_home
-from product_identity import HOME_DIR_NAME
+from product_identity import HOME_DIR_NAME, PRODUCT_NAME
 
 
 # Methods clients send as periodic liveness probes. They are not part of the
@@ -118,7 +118,7 @@ def _load_env() -> None:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="hermes-acp",
-        description="Run Hermes Agent as an ACP stdio server.",
+        description=f"Run {PRODUCT_NAME} Agent as an ACP stdio server.",
     )
     parser.add_argument("--version", action="store_true", help="Print Hermes version and exit")
     parser.add_argument(

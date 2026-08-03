@@ -32,6 +32,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
+from product_identity import PRODUCT_NAME
+
 PROTOCOL_VERSION = "1.0"
 
 # A2A v1.0 task lifecycle states.
@@ -122,7 +124,7 @@ def build_agent_card(
         "url": url,  # convenience for pre-1.0 clients; canonical is supportedInterfaces
         "version": "1.0.0",
         "provider": {
-            "organization": os.getenv("A2A_PROVIDER_ORG", "Hermes Agent"),
+            "organization": os.getenv("A2A_PROVIDER_ORG", f"{PRODUCT_NAME} Agent"),
             "url": os.getenv("A2A_PROVIDER_URL", "") or url,
         },
         "supportedInterfaces": [iface],
