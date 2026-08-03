@@ -8863,6 +8863,7 @@ def interactive_setup() -> None:
         print_success,
         print_warning,
     )
+    from product_identity import PRODUCT_NAME
 
     def _write_slack_manifest_and_instruct() -> None:
         """Generate the Slack manifest, write it under HERMES_HOME, and print
@@ -8890,7 +8891,7 @@ def interactive_setup() -> None:
             )
             print_info(
                 "   Re-run `hermes slack manifest --write` anytime to refresh after "
-                "Hermes adds new commands."
+                f"{PRODUCT_NAME} adds new commands."
             )
         except Exception as e:
             print_warning(f"Could not write Slack manifest: {e}")
@@ -8951,7 +8952,7 @@ def interactive_setup() -> None:
         print_info("   Set SLACK_ALLOW_ALL_USERS=true or GATEWAY_ALLOW_ALL_USERS=true only if you intentionally want open workspace access.")
 
     print()
-    print_info("📬 Home Channel: where Hermes delivers cron job results,")
+    print_info(f"📬 Home Channel: where {PRODUCT_NAME} delivers cron job results,")
     print_info("   cross-platform messages, and notifications.")
     print_info("   To get a channel ID: open the channel in Slack, then right-click")
     print_info("   the channel name → Copy link — the ID starts with C (e.g. C01ABC2DE3F).")

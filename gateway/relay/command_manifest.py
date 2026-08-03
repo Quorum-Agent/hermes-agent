@@ -29,6 +29,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from product_identity import PRODUCT_NAME
+
 # Discord option type 3 = STRING.
 _STR = 3
 
@@ -49,7 +51,7 @@ def build_relay_command_manifest() -> List[Dict[str, Any]]:
     """The relay lane's Discord slash-command manifest (native-tree mirror)."""
     return [
         {"name": "new", "description": "Start a new conversation"},
-        {"name": "reset", "description": "Reset your Hermes session"},
+        {"name": "reset", "description": f"Reset your {PRODUCT_NAME} session"},
         {
             "name": "model",
             "description": "Show or change the model",
@@ -85,9 +87,9 @@ def build_relay_command_manifest() -> List[Dict[str, Any]]:
         },
         {"name": "retry", "description": "Retry your last message"},
         {"name": "undo", "description": "Remove the last exchange"},
-        {"name": "status", "description": "Show Hermes session status"},
+        {"name": "status", "description": f"Show {PRODUCT_NAME} session status"},
         {"name": "sethome", "description": "Set this chat as the home channel"},
-        {"name": "stop", "description": "Stop the running Hermes agent"},
+        {"name": "stop", "description": f"Stop the running {PRODUCT_NAME} agent"},
         {
             "name": "steer",
             "description": "Inject a message after the next tool call (no interrupt)",
@@ -113,8 +115,8 @@ def build_relay_command_manifest() -> List[Dict[str, Any]]:
             "description": "Re-scan skills for new or removed entries",
         },
         {"name": "voice", "description": "Toggle voice reply mode"},
-        {"name": "update", "description": "Update Hermes Agent to the latest version"},
-        {"name": "restart", "description": "Gracefully restart the Hermes gateway"},
+        {"name": "update", "description": f"Update {PRODUCT_NAME} Agent to the latest version"},
+        {"name": "restart", "description": f"Gracefully restart the {PRODUCT_NAME} gateway"},
         {
             "name": "approve",
             "description": "Approve a pending dangerous command",
@@ -129,7 +131,7 @@ def build_relay_command_manifest() -> List[Dict[str, Any]]:
         },
         {
             "name": "thread",
-            "description": "Create a new thread and start a Hermes session in it",
+            "description": f"Create a new thread and start a {PRODUCT_NAME} session in it",
             "options": [_opt("name", "Thread name")],
         },
         {
