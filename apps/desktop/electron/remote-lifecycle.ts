@@ -248,7 +248,10 @@ async function probeRemotePlatform(ssh) {
 // state store; best-effort.
 async function probeRemoteHermesHome(ssh) {
   try {
-    const out = (await ssh.exec(`echo "\${HERMES_HOME:-$HOME/${PRODUCT_IDENTITY.homeDirName}}"`)).trim().split('\n').pop()
+    const out = (await ssh.exec(`echo "\${HERMES_HOME:-$HOME/${PRODUCT_IDENTITY.homeDirName}}"`))
+      .trim()
+      .split('\n')
+      .pop()
 
     return out || `~/${PRODUCT_IDENTITY.homeDirName}`
   } catch (cause) {

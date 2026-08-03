@@ -11,7 +11,11 @@ function samePath(left, right, pathModule) {
     return false
   }
 
-  const normalize = value => pathModule.resolve(String(value)).replace(/[\\/]+$/, '').toLowerCase()
+  const normalize = value =>
+    pathModule
+      .resolve(String(value))
+      .replace(/[\\/]+$/, '')
+      .toLowerCase()
 
   return normalize(left) === normalize(right)
 }
