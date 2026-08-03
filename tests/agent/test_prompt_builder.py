@@ -528,6 +528,14 @@ class TestFindHermesMd:
         (tmp_path / ".hermes.md").write_text("rules")
         assert _find_hermes_md(tmp_path) == tmp_path / ".hermes.md"
 
+    def test_prefers_quorum_md_over_hermes_md(self, tmp_path):
+        """Coexistence: the edition's own .quorum.md wins over .hermes.md in the
+        same directory, so a Quorum project stays isolated from a side-by-side
+        Hermes (prefer-Quorum-fall-back-to-Hermes)."""
+        (tmp_path / ".hermes.md").write_text("hermes rules")
+        (tmp_path / ".quorum.md").write_text("quorum rules")
+        assert _find_hermes_md(tmp_path) == tmp_path / ".quorum.md"
+
 
 
     def test_walks_to_git_root(self, tmp_path):

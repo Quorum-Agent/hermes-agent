@@ -93,7 +93,12 @@ def _find_git_root(start: Path) -> Optional[Path]:
     return None
 
 
-_HERMES_MD_NAMES = (".hermes.md", "HERMES.md")
+# Project context filenames, in precedence order within each directory. The
+# edition's own ``.quorum.md`` / ``QUORUM.md`` are preferred so a Quorum project
+# stays isolated from a side-by-side Hermes; the ``.hermes.md`` / ``HERMES.md``
+# names remain as a fallback so existing projects keep working and a Quorum
+# install can adopt a Hermes project unchanged (prefer-Quorum-fall-back-to-Hermes).
+_HERMES_MD_NAMES = (".quorum.md", "QUORUM.md", ".hermes.md", "HERMES.md")
 
 
 def _find_hermes_md(cwd: Path) -> Optional[Path]:
@@ -2034,7 +2039,7 @@ def _load_hermes_md(cwd_path: Path, context_length: Optional[int] = None) -> str
         content = _scan_context_content(content, rel)
         result = f"## {rel}\n\n{content}"
         return _truncate_content(
-            result, ".hermes.md", context_length=context_length,
+            result, hermes_md_path.name, context_length=context_length,
             read_path=str(hermes_md_path),
         )
     except Exception as e:
