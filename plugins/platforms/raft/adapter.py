@@ -797,6 +797,7 @@ def interactive_setup() -> None:
         prompt_yes_no,
     )
     from hermes_cli.config import get_env_value, save_env_value
+    from product_identity import PRODUCT_NAME
 
     print_header("Raft")
     existing_profile = get_env_value("RAFT_PROFILE")
@@ -806,7 +807,7 @@ def interactive_setup() -> None:
             print_info(f"Keeping RAFT_PROFILE={existing_profile}.")
             return
 
-    print_info("Connect Hermes to Raft as an external agent.")
+    print_info(f"Connect {PRODUCT_NAME} to Raft as an external agent.")
     print_info("Create the External Agent in Raft first, then run:")
     print_info("  raft agent login --server <server-url> --agent <agent-id> --profile-slug <slug>")
     print()

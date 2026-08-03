@@ -5395,7 +5395,7 @@ class DiscordAdapter(BasePlatformAdapter):
 
     def _register_slash_commands(self) -> None:
         """Register Discord slash commands on the command tree."""
-        from product_identity import HOME_DIR_NAME
+        from product_identity import HOME_DIR_NAME, PRODUCT_NAME
 
         if not self._client:
             return
@@ -5406,7 +5406,7 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_new(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/reset", "New conversation started~")
 
-        @tree.command(name="reset", description="Reset your Hermes session")
+        @tree.command(name="reset", description=f"Reset your {PRODUCT_NAME} session")
         async def slash_reset(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/reset", "Session reset~")
 
@@ -5452,7 +5452,7 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_undo(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/undo")
 
-        @tree.command(name="status", description="Show Hermes session status")
+        @tree.command(name="status", description=f"Show {PRODUCT_NAME} session status")
         async def slash_status(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/status", "Status sent~")
 
@@ -5460,7 +5460,7 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_sethome(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/sethome")
 
-        @tree.command(name="stop", description="Stop the running Hermes agent")
+        @tree.command(name="stop", description=f"Stop the running {PRODUCT_NAME} agent")
         async def slash_stop(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/stop", "Stop requested~")
 
@@ -5522,11 +5522,11 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_voice(interaction: discord.Interaction, mode: str = ""):
             await self._run_simple_slash(interaction, f"/voice {mode}".strip())
 
-        @tree.command(name="update", description="Update Hermes Agent to the latest version")
+        @tree.command(name="update", description=f"Update {PRODUCT_NAME} Agent to the latest version")
         async def slash_update(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/update", "Update initiated~")
 
-        @tree.command(name="restart", description="Gracefully restart the Hermes gateway")
+        @tree.command(name="restart", description=f"Gracefully restart the {PRODUCT_NAME} gateway")
         async def slash_restart(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/restart", "Restart requested~")
 
@@ -5540,10 +5540,10 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_deny(interaction: discord.Interaction, scope: str = ""):
             await self._run_simple_slash(interaction, f"/deny {scope}".strip())
 
-        @tree.command(name="thread", description="Create a new thread and start a Hermes session in it")
+        @tree.command(name="thread", description=f"Create a new thread and start a {PRODUCT_NAME} session in it")
         @discord.app_commands.describe(
             name="Thread name",
-            message="Optional first message to send to Hermes in the thread",
+            message=f"Optional first message to send to {PRODUCT_NAME} in the thread",
             auto_archive_duration="Auto-archive in minutes (60, 1440, 4320, 10080)",
         )
         async def slash_thread(
@@ -5772,6 +5772,8 @@ class DiscordAdapter(BasePlatformAdapter):
         needing to touch the Discord slash-command tree or trigger a
         ``tree.sync()`` call.
         """
+        from product_identity import PRODUCT_NAME
+
         try:
             existing_names = set()
             try:
@@ -5867,7 +5869,7 @@ class DiscordAdapter(BasePlatformAdapter):
 
             cmd = discord.app_commands.Command(
                 name="skill",
-                description="Run a Hermes skill",
+                description=f"Run a {PRODUCT_NAME} skill",
                 callback=_skill_handler,
             )
             tree.add_command(cmd)
@@ -9800,6 +9802,7 @@ def interactive_setup() -> None:
         print_info,
         print_success,
     )
+    from product_identity import PRODUCT_NAME
 
     print_header("Discord")
     existing = get_env_value("DISCORD_BOT_TOKEN")
@@ -9851,7 +9854,7 @@ def interactive_setup() -> None:
         )
 
     print()
-    print_info("📬 Home Channel: where Hermes delivers cron job results,")
+    print_info(f"📬 Home Channel: where {PRODUCT_NAME} delivers cron job results,")
     print_info("   cross-platform messages, and notifications.")
     print_info("   To get a channel ID: right-click a channel → Copy Channel ID")
     print_info("   (requires Developer Mode in Discord settings)")

@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from gateway.config import PlatformConfig
+from product_identity import PRODUCT_NAME
 
 
 class _FakeAllowedMentions:
@@ -358,7 +359,7 @@ async def test_safe_sync_slash_commands_only_mutates_diffs():
 
     desired_same = {
         "name": "status",
-        "description": "Show Hermes session status",
+        "description": f"Show {PRODUCT_NAME} session status",
         "type": 1,
         "options": [],
         "nsfw": False,
