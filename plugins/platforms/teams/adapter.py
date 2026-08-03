@@ -768,6 +768,8 @@ class TeamsAdapter(BasePlatformAdapter):
         self._conv_refs: Dict[str, Any] = {}
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
+        from product_identity import PRODUCT_NAME
+
         # Lazy-install the Teams SDK on demand (parity with Slack/Discord/etc.),
         # then re-check the module globals it rebinds.
         check_teams_requirements()
@@ -809,7 +811,7 @@ class TeamsAdapter(BasePlatformAdapter):
                 client_secret=self._client_secret,
                 tenant_id=self._tenant_id,
                 http_server_adapter=_AiohttpBridgeAdapter(aiohttp_app),
-                client=ClientOptions(headers={"User-Agent": "Hermes"}),
+                client=ClientOptions(headers={"User-Agent": PRODUCT_NAME}),
             )
 
             # Register message handler before initialize()

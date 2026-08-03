@@ -6698,6 +6698,8 @@ class DiscordAdapter(BasePlatformAdapter):
         that (e.g. permission issues), falls back to sending a seed message
         and creating the thread from it.
         """
+        from product_identity import PRODUCT_NAME
+
         name = (name or "").strip()
         if not name:
             return {"error": "Thread name is required."}
@@ -6735,7 +6737,7 @@ class DiscordAdapter(BasePlatformAdapter):
             }
         except Exception as direct_error:
             try:
-                seed_content = starter_message or f"\U0001f9f5 Thread created by Hermes: **{name}**"
+                seed_content = starter_message or f"\U0001f9f5 Thread created by {PRODUCT_NAME}: **{name}**"
                 seed_msg = await parent_channel.send(seed_content)
                 thread = await seed_msg.create_thread(
                     name=name,
@@ -6774,7 +6776,8 @@ class DiscordAdapter(BasePlatformAdapter):
         content = re.sub(r"<@[!&]?\d+>", "", content)
         content = re.sub(r"<#\d+>", "", content)
         content = re.sub(r"\s+", " ", content).strip()
-        thread_name = content[:80] if content else "Hermes"
+        from product_identity import PRODUCT_NAME
+        thread_name = content[:80] if content else PRODUCT_NAME
         if len(content) > 80:
             thread_name = thread_name[:77] + "..."
         return thread_name
@@ -6788,6 +6791,8 @@ class DiscordAdapter(BasePlatformAdapter):
         (e.g. ``Cannot connect to host discord.com:443``) don't immediately
         burn through to the caller's failure path (#20243).
         """
+        from product_identity import PRODUCT_NAME
+
         thread_name = self._derive_auto_thread_name(message.content or "")
         display_name = getattr(getattr(message, "author", None), "display_name", None) or "unknown user"
         reason = f"Auto-threaded from mention by {display_name}"
@@ -6807,7 +6812,7 @@ class DiscordAdapter(BasePlatformAdapter):
                 last_direct_error = direct_error
                 try:
                     seed_msg = await message.channel.send(
-                        f"\U0001f9f5 Thread created by Hermes: **{thread_name}**"
+                        f"\U0001f9f5 Thread created by {PRODUCT_NAME}: **{thread_name}**"
                     )
                     thread = await seed_msg.create_thread(
                         name=thread_name,
@@ -6887,7 +6892,8 @@ class DiscordAdapter(BasePlatformAdapter):
         if edit is None:
             return False
         try:
-            await edit(name=cleaned, reason="Hermes semantic session title")
+            from product_identity import PRODUCT_NAME
+            await edit(name=cleaned, reason=f"{PRODUCT_NAME} semantic session title")
             logger.info(
                 "[%s] Renamed Discord thread %s from %r to %r",
                 self.name, thread_id, current_name, cleaned,
@@ -6910,6 +6916,8 @@ class DiscordAdapter(BasePlatformAdapter):
         ``None`` on failure or when the parent isn't a text channel
         (DMs, voice channels, threads themselves can't host threads).
         """
+        from product_identity import PRODUCT_NAME
+
         if not self._client or not DISCORD_AVAILABLE:
             return None
 
@@ -6938,7 +6946,7 @@ class DiscordAdapter(BasePlatformAdapter):
             return None
 
         thread_name = (name or "handoff").strip()[:80] or "handoff"
-        reason = "Hermes session handoff"
+        reason = f"{PRODUCT_NAME} session handoff"
 
         # First try: create a thread directly on the channel.
         try:
@@ -6961,7 +6969,7 @@ class DiscordAdapter(BasePlatformAdapter):
             send = getattr(parent, "send", None)
             if send is None:
                 return None
-            seed_msg = await send(f"\U0001f9f5 Hermes handoff: **{thread_name}**")
+            seed_msg = await send(f"\U0001f9f5 {PRODUCT_NAME} handoff: **{thread_name}**")
             thread = await seed_msg.create_thread(
                 name=thread_name,
                 auto_archive_duration=1440,
@@ -7049,9 +7057,10 @@ class DiscordAdapter(BasePlatformAdapter):
             if len(reason_display) > reason_budget:
                 reason_display = reason_display[: reason_budget - 15] + "... [truncated]"
 
+            from product_identity import PRODUCT_NAME
             prompt_prefix = (
                 "⚠️ **Command Approval Required**\n\n"
-                "Do you want Hermes to run this command?\n\n"
+                f"Do you want {PRODUCT_NAME} to run this command?\n\n"
                 "**Requested command:**\n```bash\n"
             )
             if smart_denied:
@@ -7186,6 +7195,8 @@ class DiscordAdapter(BasePlatformAdapter):
         LLM tool-call keys ``label``, ``description``, ``text``, ``title``
         in that order. Dicts with none of those keys are dropped.
         """
+        from product_identity import PRODUCT_NAME
+
         if not self._client or not DISCORD_AVAILABLE:
             return SendResult(success=False, error="Not connected")
 
@@ -7205,7 +7216,7 @@ class DiscordAdapter(BasePlatformAdapter):
                 body = body[: max_desc - 3] + "..."
 
             embed = discord.Embed(
-                title="❓ Hermes needs your input",
+                title=f"❓ {PRODUCT_NAME} needs your input",
                 description=body,
                 color=discord.Color.orange(),
             )
@@ -7274,7 +7285,7 @@ class DiscordAdapter(BasePlatformAdapter):
                 else "\n\nReply in this channel with your answer."
             )
             content = self._self_contained_prompt_content(
-                "❓ **Hermes needs your input**", str(question or "").strip(),
+                f"❓ **{PRODUCT_NAME} needs your input**", str(question or "").strip(),
                 tail=clarify_tail,
             )
             msg = await channel.send(content=content, embed=embed, view=view) if view else await channel.send(content=content, embed=embed)
@@ -7753,9 +7764,10 @@ class DiscordAdapter(BasePlatformAdapter):
                     # a shared channel. Surface a short visible error so the
                     # user can retry once Discord recovers, and skip agent
                     # invocation for this message.
+                    from product_identity import PRODUCT_NAME
                     try:
                         await message.channel.send(
-                            "⚠️ Hermes could not create a Discord thread for "
+                            f"⚠️ {PRODUCT_NAME} could not create a Discord thread for "
                             "this message, so the request was not processed. Please retry."
                         )
                     except Exception as notify_error:
