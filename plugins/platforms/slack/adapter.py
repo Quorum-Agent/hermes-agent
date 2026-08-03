@@ -8874,8 +8874,8 @@ def interactive_setup() -> None:
             import json as _json
 
             manifest = _build_full_manifest(
-                bot_name="Hermes",
-                bot_description="Your Hermes agent on Slack",
+                bot_name=PRODUCT_NAME,
+                bot_description=f"Your {PRODUCT_NAME} agent on Slack",
             )
             target = Path(get_hermes_home()) / "slack-manifest.json"
             target.parent.mkdir(parents=True, exist_ok=True)

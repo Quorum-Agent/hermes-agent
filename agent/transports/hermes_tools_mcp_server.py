@@ -165,11 +165,12 @@ def _build_server() -> Any:
         get_tool_definitions,
         handle_function_call,
     )
+    from product_identity import PRODUCT_NAME
 
     mcp = FastMCP(
         "hermes-tools",
         instructions=(
-            "Hermes Agent's tool surface, exposed for use inside a Codex "
+            f"{PRODUCT_NAME} Agent's tool surface, exposed for use inside a Codex "
             "session. Use these for capabilities Codex's built-in toolset "
             "doesn't cover: web search/extract, browser automation, "
             "subagent delegation, vision, image generation, persistent "

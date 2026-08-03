@@ -1709,10 +1709,12 @@ class MatrixAdapter(BasePlatformAdapter):
                 return False
         elif self._password and self._user_id:
             try:
+                from product_identity import PRODUCT_NAME
+
                 resp = await client.login(
                     identifier=self._user_id,
                     password=self._password,
-                    device_name="Hermes Agent",
+                    device_name=f"{PRODUCT_NAME} Agent",
                     device_id=self._device_id or None,
                 )
                 if resp and hasattr(resp, "device_id"):
