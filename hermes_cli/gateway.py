@@ -6155,8 +6155,6 @@ def _setup_signal():
     """Interactive setup for Signal messenger."""
     import shutil
 
-    from product_identity import PRODUCT_NAME
-
     print()
     print(color("  ─── 📡 Signal Setup ───", Colors.CYAN))
 
