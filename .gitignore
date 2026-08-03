@@ -125,6 +125,10 @@ models-dev-upstream/
 .cursor/
 .gemini/
 .zed/
+# Blender Toolkit plugin state — regenerated on session start by the plugin's
+# SessionStart hook (addon ZIP, built CLI scripts, per-project config). Machine-
+# specific runtime tooling, never a code change.
+.blender-toolkit/
 .mcp.json
 opencode.json
 config/mcporter.json
