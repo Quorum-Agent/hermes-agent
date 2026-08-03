@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Callable
 
 from hermes_cli.subcommands._shared import add_accept_hooks_flag
+from product_identity import HOME_DIR_NAME
 
 
 def build_acp_parser(subparsers, *, cmd_acp: Callable) -> None:
@@ -38,7 +39,7 @@ def build_acp_parser(subparsers, *, cmd_acp: Callable) -> None:
     acp_parser.add_argument(
         "--setup-browser",
         action="store_true",
-        help="Install agent-browser + Playwright Chromium into ~/.hermes/node/ "
+        help=f"Install agent-browser + Playwright Chromium into ~/{HOME_DIR_NAME}/node/ "
              "for browser tool support (idempotent).",
     )
     acp_parser.add_argument(

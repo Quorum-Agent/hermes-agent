@@ -5395,6 +5395,8 @@ class DiscordAdapter(BasePlatformAdapter):
 
     def _register_slash_commands(self) -> None:
         """Register Discord slash commands on the command tree."""
+        from product_identity import HOME_DIR_NAME
+
         if not self._client:
             return
 
@@ -5498,7 +5500,7 @@ class DiscordAdapter(BasePlatformAdapter):
         async def slash_reload_mcp(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/reload-mcp")
 
-        @tree.command(name="reload-skills", description="Re-scan ~/.hermes/skills/ for new or removed skills")
+        @tree.command(name="reload-skills", description=f"Re-scan ~/{HOME_DIR_NAME}/skills/ for new or removed skills")
         async def slash_reload_skills(interaction: discord.Interaction):
             await self._run_simple_slash(interaction, "/reload-skills")
 

@@ -2540,6 +2540,7 @@ def _model_flow_vertex(config, current_model=""):
     )
     from hermes_cli.config import load_config, save_config, get_env_value
     from hermes_cli.models import _PROVIDER_MODELS
+    from hermes_constants import display_hermes_home
 
     # 1. Credential source detection (fast, no network / no google-auth import).
     sa_path = (
@@ -2553,7 +2554,7 @@ def _model_flow_vertex(config, current_model=""):
         print("  Vertex credentials: Application Default Credentials (ADC)")
         print("    Vertex uses OAuth2, not a static API key. Either:")
         print("      • run 'gcloud auth application-default login', or")
-        print("      • set VERTEX_CREDENTIALS_PATH in ~/.hermes/.env to a service account JSON")
+        print(f"      • set VERTEX_CREDENTIALS_PATH in {display_hermes_home()}/.env to a service account JSON")
     print()
 
     cfg = load_config()

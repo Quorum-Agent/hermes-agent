@@ -1514,6 +1514,8 @@ class GoalManager:
         # flakiness.  Without this guard, a permanently broken judge burns
         # every turn budget slot on an unreachable API.
         if state.consecutive_transport_failures >= DEFAULT_MAX_CONSECUTIVE_TRANSPORT_FAILURES:
+            from hermes_constants import display_hermes_home
+
             state.status = "paused"
             state.paused_reason = (
                 f"judge API unreachable {state.consecutive_transport_failures} turns in a row "
@@ -1529,7 +1531,7 @@ class GoalManager:
                 "message": (
                     f"⏸ Goal paused — judge API returned errors "
                     f"({state.consecutive_transport_failures} turns). "
-                    "Check the goal_judge provider/key in ~/.hermes/config.yaml:\n"
+                    f"Check the goal_judge provider/key in {display_hermes_home()}/config.yaml:\n"
                     "  auxiliary:\n"
                     "    goal_judge:\n"
                     "      provider: deepseek\n"
@@ -1545,6 +1547,8 @@ class GoalManager:
         # weak judge models burn the entire turn budget returning prose or
         # empty strings.
         if state.consecutive_parse_failures >= DEFAULT_MAX_CONSECUTIVE_PARSE_FAILURES:
+            from hermes_constants import display_hermes_home
+
             state.status = "paused"
             state.paused_reason = (
                 f"judge model returned unparseable output {state.consecutive_parse_failures} turns in a row"
@@ -1559,7 +1563,7 @@ class GoalManager:
                 "message": (
                     f"⏸ Goal paused — the judge model ({state.consecutive_parse_failures} turns) "
                     "isn't returning the required JSON verdict. Route the judge to a stricter "
-                    "model in ~/.hermes/config.yaml:\n"
+                    f"model in {display_hermes_home()}/config.yaml:\n"
                     "  auxiliary:\n"
                     "    goal_judge:\n"
                     "      provider: openrouter\n"

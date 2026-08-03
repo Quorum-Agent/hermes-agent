@@ -13,6 +13,8 @@ from __future__ import annotations
 import argparse
 from typing import Callable
 
+from product_identity import HOME_DIR_NAME
+
 
 def _add_server_runtime_args(parser) -> None:
     """Attach the runtime flags shared by ``dashboard`` and ``serve``.
@@ -182,7 +184,7 @@ def build_dashboard_parser(
         description=(
             "Register this install as a self-hosted dashboard with your Nous "
             "Portal account. Creates an OAuth client, writes "
-            "HERMES_DASHBOARD_OAUTH_CLIENT_ID into ~/.hermes/.env, and prints "
+            f"HERMES_DASHBOARD_OAUTH_CLIENT_ID into ~/{HOME_DIR_NAME}/.env, and prints "
             "how to engage the login gate. Requires being logged in (hermes setup)."
         ),
     )

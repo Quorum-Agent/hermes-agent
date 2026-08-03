@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import HOME_DIR_NAME
+
 
 def build_claw_parser(subparsers, *, cmd_claw: Callable) -> None:
     """Attach the ``claw`` subcommand to ``subparsers``."""
@@ -54,8 +56,8 @@ def build_claw_parser(subparsers, *, cmd_claw: Callable) -> None:
     claw_migrate.add_argument(
         "--no-backup",
         action="store_true",
-        help="Skip the pre-migration zip snapshot of ~/.hermes/ (by default a "
-        "single restore-point archive is written to ~/.hermes/backups/ "
+        help=f"Skip the pre-migration zip snapshot of ~/{HOME_DIR_NAME}/ (by default a "
+        f"single restore-point archive is written to ~/{HOME_DIR_NAME}/backups/ "
         "before apply; restorable with 'hermes import').",
     )
     claw_migrate.add_argument(

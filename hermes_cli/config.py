@@ -223,13 +223,15 @@ def _reject_denylisted_env_var(key: str) -> None:
     same gate, and so the message is consistent for callers.
     """
     if key in _ENV_VAR_NAME_DENYLIST:
+        from hermes_constants import display_hermes_home
+
         raise ValueError(
             f"Environment variable {key!r} is on the writer denylist. "
             "Names that influence subprocess execution (LD_PRELOAD, "
             "PYTHONPATH, PATH, EDITOR, ...) or Hermes runtime location "
             "(HERMES_HOME, HERMES_PROFILE, ...) cannot be persisted via "
             "the env writer. If you really need this, edit "
-            "~/.hermes/.env directly."
+            f"{display_hermes_home()}/.env directly."
         )
 
 _LAST_EXPANDED_CONFIG_BY_PATH: Dict[str, Any] = {}
@@ -2510,8 +2512,10 @@ def _env_expand_match(m: re.Match) -> str:
         val = os.environ.get(name)
         if val is not None:
             return val
+        from hermes_constants import display_hermes_home
+
         logger.warning(
-            "Config ref %r: %s is not set (check ~/.hermes/.env); "
+            f"Config ref %r: %s is not set (check {display_hermes_home()}/.env); "
             "keeping the literal placeholder", raw, name,
         )
         return raw

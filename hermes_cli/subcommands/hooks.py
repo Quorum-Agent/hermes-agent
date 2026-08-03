@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import HOME_DIR_NAME
+
 
 def build_hooks_parser(subparsers, *, cmd_hooks: Callable) -> None:
     """Attach the ``hooks`` subcommand to ``subparsers``."""
@@ -16,9 +18,9 @@ def build_hooks_parser(subparsers, *, cmd_hooks: Callable) -> None:
         "hooks",
         help="Inspect and manage shell-script hooks",
         description=(
-            "Inspect shell-script hooks declared in ~/.hermes/config.yaml, "
+            f"Inspect shell-script hooks declared in ~/{HOME_DIR_NAME}/config.yaml, "
             "test them against synthetic payloads, and manage the first-use "
-            "consent allowlist at ~/.hermes/shell-hooks-allowlist.json."
+            f"consent allowlist at ~/{HOME_DIR_NAME}/shell-hooks-allowlist.json."
         ),
     )
     hooks_subparsers = hooks_parser.add_subparsers(dest="hooks_action")

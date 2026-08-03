@@ -694,10 +694,11 @@ def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None
     # this file.
     hermes_config = _get_hermes_config_resolved()
     if hermes_config and (resolved == hermes_config or normalized == hermes_config):
+        from hermes_constants import display_hermes_home as _dhh
         return (
             f"Refusing to write to Hermes config file: {filepath}\n"
             "Agent cannot modify security-sensitive configuration. "
-            "Edit ~/.hermes/config.yaml directly or use 'hermes config' instead."
+            f"Edit {_dhh()}/config.yaml directly or use 'hermes config' instead."
         )
     return None
 

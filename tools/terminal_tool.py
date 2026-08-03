@@ -1327,9 +1327,10 @@ def _parse_env_var(name: str, default: str, converter: Any = int, type_label: st
     try:
         return converter(raw)
     except (ValueError, json.JSONDecodeError):
+        from hermes_constants import display_hermes_home as _dhh
         raise ValueError(
             f"Invalid value for {name}: {raw!r} (expected {type_label}). "
-            f"Check ~/.hermes/.env or environment variables."
+            f"Check {_dhh()}/.env or environment variables."
         )
 
 

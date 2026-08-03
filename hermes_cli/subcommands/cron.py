@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Callable
 
 from hermes_cli.subcommands._shared import add_accept_hooks_flag
+from product_identity import HOME_DIR_NAME
 
 
 def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
@@ -48,7 +49,7 @@ def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
     cron_create.add_argument(
         "--script",
         help=(
-            "Path to a script under ~/.hermes/scripts/. Default mode: "
+            f"Path to a script under ~/{HOME_DIR_NAME}/scripts/. Default mode: "
             "script stdout is injected into the agent's prompt each run. "
             "With --no-agent: the script IS the job and its stdout is "
             "delivered verbatim. .sh/.bash files run via bash, everything "
@@ -120,7 +121,7 @@ def build_cron_parser(subparsers, *, cmd_cron: Callable) -> None:
     cron_edit.add_argument(
         "--script",
         help=(
-            "Path to a script under ~/.hermes/scripts/. Pass empty string to clear. "
+            f"Path to a script under ~/{HOME_DIR_NAME}/scripts/. Pass empty string to clear. "
             "With --no-agent the script IS the job; otherwise its stdout is "
             "injected into the agent's prompt each run."
         ),

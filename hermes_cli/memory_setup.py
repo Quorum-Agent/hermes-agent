@@ -13,7 +13,7 @@ import sys
 import shlex
 from pathlib import Path
 
-from hermes_constants import get_hermes_home
+from hermes_constants import display_hermes_home, get_hermes_home
 from hermes_cli.secret_prompt import masked_secret_prompt
 
 _CANCELLED = -1
@@ -288,7 +288,7 @@ def cmd_setup(args) -> None:
 
     if not providers:
         print("\n  No memory provider plugins detected.")
-        print("  Install a plugin to ~/.hermes/plugins/ and try again.\n")
+        print(f"  Install a plugin to {display_hermes_home()}/plugins/ and try again.\n")
         return
 
     # Build picker items
@@ -548,7 +548,7 @@ def cmd_status(args) -> None:
                         print(line)
         else:
             print("\n  Plugin:    NOT installed ✗")
-            print(f"  Install the '{provider_name}' memory plugin to ~/.hermes/plugins/")
+            print(f"  Install the '{provider_name}' memory plugin to {display_hermes_home()}/plugins/")
 
     if providers:
         print("\n  Installed plugins:")

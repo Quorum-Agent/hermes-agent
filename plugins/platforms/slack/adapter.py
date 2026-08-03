@@ -1752,6 +1752,8 @@ class SlackAdapter(BasePlatformAdapter):
 
     async def connect(self, *, is_reconnect: bool = False) -> bool:
         """Connect to Slack via Socket Mode."""
+        from hermes_constants import display_hermes_home
+
         if not SLACK_AVAILABLE:
             logger.error(
                 "[Slack] slack-bolt not installed. Run: pip install slack-bolt",
@@ -1776,13 +1778,13 @@ class SlackAdapter(BasePlatformAdapter):
             logger.error(
                 "[Slack] SLACK_BOT_TOKEN not set — this is a permanent config "
                 "error; set SLACK_BOT_TOKEN via `hermes gateway setup` "
-                "or in the active profile's ~/.hermes/.env file, then restart "
+                f"or in the active profile's {display_hermes_home()}/.env file, then restart "
                 "the gateway.",
             )
             self._set_fatal_error(
                 "missing_slack_bot_token",
                 "SLACK_BOT_TOKEN not configured. Use `hermes gateway setup` "
-                "or add it to your active profile's ~/.hermes/.env file, "
+                f"or add it to your active profile's {display_hermes_home()}/.env file, "
                 "then restart the gateway.",
                 retryable=False,
             )
@@ -1791,13 +1793,13 @@ class SlackAdapter(BasePlatformAdapter):
             logger.error(
                 "[Slack] SLACK_APP_TOKEN not set — this is a permanent config "
                 "error; set SLACK_APP_TOKEN via `hermes gateway setup` "
-                "or in the active profile's ~/.hermes/.env file, then restart "
+                f"or in the active profile's {display_hermes_home()}/.env file, then restart "
                 "the gateway.",
             )
             self._set_fatal_error(
                 "missing_slack_app_token",
                 "SLACK_APP_TOKEN not configured. Use `hermes gateway setup` "
-                "or add it to your active profile's ~/.hermes/.env file, "
+                f"or add it to your active profile's {display_hermes_home()}/.env file, "
                 "then restart the gateway.",
                 retryable=False,
             )
