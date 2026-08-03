@@ -24,6 +24,8 @@ def _reset_quorum_events():
         ("mock", "https://api.openai.com/v1", "cloud"),
         ("in-process", "http://192.168.1.25:8000/v1", "network"),
         ("openai", "", "cloud"),
+        ("moa", "moa://local", "device"),
+        ("moa", "moa://remote", "network"),
         ("quorum-scaffold", "", "device"),
     ],
 )
@@ -136,6 +138,24 @@ def test_private_allows_loopback_provider(monkeypatch):
 
     assert decision.allowed is True
     assert decision.reach == "local"
+
+
+def test_moa_facade_is_device_local_even_for_sensitive_outer_payload(monkeypatch):
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_sensitive_categories",
+        lambda _request: ("credential",),
+    )
+    decision = quorum_dispatch.evaluate_dispatch(
+        {"messages": [{"role": "user", "content": "sensitive local payload"}]},
+        provider="moa",
+        model="review",
+        base_url="moa://local",
+        settings=quorum_dispatch.DispatchSettings(default_policy="offline"),
+    )
+
+    assert decision.allowed is True
+    assert decision.reach == "device"
 
 
 def test_cost_controlled_fails_closed_without_usage_ledger(monkeypatch):

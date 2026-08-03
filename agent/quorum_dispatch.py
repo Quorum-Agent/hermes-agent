@@ -219,10 +219,19 @@ def classify_model_reach(provider: str, base_url: str = "") -> str:
     cloud so a missing descriptor can never loosen a policy.
     """
 
+    normalized = str(provider or "").strip().lower()
+    normalized_endpoint = str(base_url or "").strip().lower().rstrip("/")
+    # MoA's outer facade is an in-process dispatcher, not a network endpoint.
+    # Its reference and aggregator calls are independently guarded after they
+    # resolve to their physical providers.  Match only the canonical virtual
+    # identity so a user-supplied ``moa://remote`` endpoint cannot gain device
+    # privileges.
+    if normalized == "moa" and normalized_endpoint == "moa://local":
+        return "device"
+
     endpoint_reach = _host_reach(base_url)
     if endpoint_reach is not None:
         return endpoint_reach
-    normalized = str(provider or "").strip().lower()
     if normalized in _DEVICE_PROVIDERS:
         return "device"
     if any(hint in normalized for hint in _CLOUD_PROVIDER_HINTS):
