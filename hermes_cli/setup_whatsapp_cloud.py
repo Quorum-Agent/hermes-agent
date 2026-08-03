@@ -39,6 +39,8 @@ import secrets
 import sys
 from typing import Optional
 
+from product_identity import PRODUCT_NAME
+
 
 # ---------------------------------------------------------------------------
 # Field-shape validators
@@ -241,7 +243,7 @@ def run_whatsapp_cloud_setup() -> int:
     print("⚕ WhatsApp Business Cloud API Setup")
     print("=" * 50)
     print()
-    print("This wizard configures Hermes to talk to WhatsApp via Meta's")
+    print(f"This wizard configures {PRODUCT_NAME} to talk to WhatsApp via Meta's")
     print("official Cloud API. It's the production-grade path:")
     print()
     print("  • No QR codes, no Node.js bridge subprocess")
@@ -465,7 +467,7 @@ def run_whatsapp_cloud_setup() -> int:
     print("SETUP COMPLETE — Next steps")
     print("─" * 50)
     print()
-    print("  Hermes needs a public HTTPS URL to receive WhatsApp messages.")
+    print(f"  {PRODUCT_NAME} needs a public HTTPS URL to receive WhatsApp messages.")
     print("  The recommended path is Cloudflare Tunnel (free, no port")
     print("  forwarding, no DNS setup).")
     print()
@@ -481,7 +483,7 @@ def run_whatsapp_cloud_setup() -> int:
     print("         cloudflared tunnel --url http://localhost:8090")
     print("       Note the printed https://<random>.trycloudflare.com URL.")
     print()
-    print("    3. Start the Hermes gateway in another terminal:")
+    print(f"    3. Start the {PRODUCT_NAME} gateway in another terminal:")
     print("         hermes gateway")
     print()
     print("    4. Verify your local config is reachable. From a third")

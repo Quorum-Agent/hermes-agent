@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_dump_parser(subparsers, *, cmd_dump: Callable) -> None:
     """Attach the ``dump`` subcommand to ``subparsers``."""
@@ -17,7 +19,7 @@ def build_dump_parser(subparsers, *, cmd_dump: Callable) -> None:
     dump_parser = subparsers.add_parser(
         "dump",
         help="Dump setup summary for support/debugging",
-        description="Output a compact, plain-text summary of your Hermes setup "
+        description=f"Output a compact, plain-text summary of your {PRODUCT_NAME} setup "
         "that can be copy-pasted into Discord/GitHub for support context",
     )
     dump_parser.add_argument(

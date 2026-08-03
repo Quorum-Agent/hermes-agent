@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_gui_parser(subparsers, *, cmd_gui: Callable) -> None:
     """Attach the ``gui`` subcommand to ``subparsers``."""
@@ -44,7 +46,7 @@ def build_gui_parser(subparsers, *, cmd_gui: Callable) -> None:
     )
     gui_parser.add_argument(
         "--hermes-root",
-        help="Override the Hermes source root used by Desktop (sets HERMES_DESKTOP_HERMES_ROOT)",
+        help=f"Override the {PRODUCT_NAME} source root used by Desktop (sets HERMES_DESKTOP_HERMES_ROOT)",
     )
     gui_parser.add_argument(
         "--cwd",

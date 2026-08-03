@@ -27,6 +27,7 @@ import urllib.parse
 
 from hermes_cli.config import clear_model_endpoint_credentials
 from hermes_cli.providers import custom_provider_slug
+from product_identity import PRODUCT_NAME
 
 
 # AWS cross-region inference profile prefixes. Any geo-prefixed profile only
@@ -1197,7 +1198,7 @@ def _model_flow_azure_foundry(config, current_model=""):
     print("=" * 50)
     print()
     print("Azure Foundry can host models with either OpenAI-style or")
-    print("Anthropic-style API endpoints.  Hermes will probe your")
+    print(f"Anthropic-style API endpoints.  {PRODUCT_NAME} will probe your")
     print("endpoint to auto-detect the transport and the deployed")
     print("models when possible.")
     print()
@@ -1922,9 +1923,9 @@ def _model_flow_copilot_acp(config, current_model=""):
     )
     effective_base = status.get("base_url") or pconfig.inference_base_url
 
-    print("  GitHub Copilot ACP delegates Hermes turns to `copilot --acp`.")
-    print("  Hermes currently starts its own ACP subprocess for each request.")
-    print("  Hermes uses your selected model as a hint for the Copilot ACP session.")
+    print(f"  GitHub Copilot ACP delegates {PRODUCT_NAME} turns to `copilot --acp`.")
+    print(f"  {PRODUCT_NAME} currently starts its own ACP subprocess for each request.")
+    print(f"  {PRODUCT_NAME} uses your selected model as a hint for the Copilot ACP session.")
     print(f"  Command: {resolved_command}")
     print(f"  Backend marker: {effective_base}")
     print()
