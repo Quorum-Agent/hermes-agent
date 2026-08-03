@@ -1210,7 +1210,9 @@ def _openviking_server_log_path() -> Path:
         from hermes_constants import get_hermes_home
         home = get_hermes_home()
     except Exception:
-        home = Path(os.environ.get("HERMES_HOME", "")).expanduser() if os.environ.get("HERMES_HOME") else Path.home() / ".hermes"
+        from product_identity import HOME_DIR_NAME
+        _hh = os.environ.get("QUORUM_HOME") or os.environ.get("HERMES_HOME")
+        home = Path(_hh).expanduser() if _hh else Path.home() / HOME_DIR_NAME
     return home / _OPENVIKING_SERVER_LOG_RELATIVE_PATH
 
 
