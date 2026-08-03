@@ -1816,7 +1816,11 @@ def _profile_arg(hermes_home: str | None = None, default_root: str | Path | None
 
 def _profile_arg_for_target_user(hermes_home: str, target_home_dir: str) -> str:
     """Return the profile arg for a system service running as another user."""
-    target_root = Path(target_home_dir) / ".hermes"
+    # Must match the edition home (_hermes_home_for_target_user remaps to
+    # <target>/<HOME_DIR_NAME>); hardcoding ".hermes" here dropped the
+    # --profile flag from Quorum sudo/system installs because the remapped
+    # ~/.quorum profile path no longer resolved relative to the target root.
+    target_root = Path(target_home_dir) / HOME_DIR_NAME
     try:
         Path(hermes_home).resolve().relative_to(target_root.resolve())
         return _profile_arg(hermes_home, default_root=target_root)
