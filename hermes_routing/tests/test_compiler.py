@@ -1245,6 +1245,18 @@ class TestDetectSensitiveContent:
         token = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"
         assert "credentials" in detect_sensitive_content(token)
 
+    def test_git_branch_ref_is_not_a_credential(self):
+        # Regression: a git branch ref / PR merge subject embeds
+        # "<org>/<branch>", which can exceed 40 chars with mixed case + "/-"
+        # separators and high whole-token entropy but is not a secret. The
+        # agent injects its own git-context block (recent commit subjects) into
+        # the system prompt, so a long branch name here was misclassified as
+        # "credentials" and hard-blocked by the fail-closed dispatch policy.
+        token = "Quorum-Agent/fix/gateway-quorum-help-paths"
+        assert "credentials" not in detect_sensitive_content(token)
+        line = f"3ca41faa0 Merge pull request #2 from {token}"
+        assert "credentials" not in detect_sensitive_content(line)
+
     def test_aws_access_key(self):
         cats = detect_sensitive_content("AKIAIOSFODNN7EXAMPLE")
         assert "credentials" in cats

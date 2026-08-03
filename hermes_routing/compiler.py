@@ -216,6 +216,13 @@ _MODAL_REFERENTIAL_FOLLOW_UP_PATTERN = re.compile(
 
 # For hasHighEntropyToken
 _HIGH_ENTROPY_TOKEN_PATTERN = re.compile(r"[A-Za-z0-9+/_=-]{40,}")
+# Minimum unbroken alphanumeric run for the generic entropy fallback to treat a
+# 40+ char token as an opaque credential. A real secret is a single
+# high-entropy blob; delimited identifiers (git refs like
+# "Org/some-long-branch-name", relative paths) reach 40+ chars only by joining
+# short words with "/", "-", or "_", so their longest run is tiny. Opaque
+# tokens and base64 blobs keep long runs and still match.
+_MIN_OPAQUE_TOKEN_RUN = 32
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +293,21 @@ def _has_high_entropy_token(content: str) -> bool:
         # independently, so exclude only multi-segment absolute path tokens
         # from this generic entropy fallback.
         if token.startswith("/") and token.count("/") >= 2:
+            continue
+        # Delimited identifiers (git branch refs, PR merge subjects like
+        # "Org/feature-branch-name", relative workspace paths) can exceed 40
+        # chars with 3+ character classes and high whole-token entropy, yet are
+        # not credentials — their length is short words joined by "/", "-", or
+        # "_". Require a long *contiguous* alphanumeric run so a ref (longest
+        # run a handful of chars) is not misread as a secret, while opaque
+        # tokens and base64 blobs (long unbroken runs) still match. Explicit
+        # key/JWT/PEM/db-URL detectors run independently for in-context secrets,
+        # so this only relaxes the generic fallback.
+        longest_run = max(
+            (len(segment) for segment in re.split(r"[^A-Za-z0-9]", token)),
+            default=0,
+        )
+        if longest_run < _MIN_OPAQUE_TOKEN_RUN:
             continue
         character_classes = sum(
             1
