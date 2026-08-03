@@ -575,6 +575,7 @@ def interactive_setup() -> None:
         print_warning,
         print_success,
     )
+    from hermes_constants import display_hermes_home
 
     print_header("IRC")
     existing_server = get_env_value("IRC_SERVER")
@@ -662,7 +663,7 @@ def interactive_setup() -> None:
             print_info("No nicks allowed — the bot will ignore all messages until you add nicks.")
 
     print()
-    print_success("IRC configuration saved to ~/.hermes/.env")
+    print_success(f"IRC configuration saved to {display_hermes_home()}/.env")
     print_info("Restart the gateway for changes to take effect: hermes gateway restart")
 
 

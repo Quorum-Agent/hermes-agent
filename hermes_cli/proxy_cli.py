@@ -26,6 +26,7 @@ from rich.table import Table
 
 from agent.proxy_sources import iron_proxy as ip
 from hermes_cli.config import load_config, save_config
+from hermes_constants import display_hermes_home
 
 
 # ---------------------------------------------------------------------------
@@ -251,7 +252,7 @@ def cmd_setup(args: argparse.Namespace) -> int:
         if loaded:
             console.print(
                 f"  [dim]Loaded {loaded} provider key name(s) from "
-                f"~/.hermes/.env for discovery.[/dim]"
+                f"{display_hermes_home()}/.env for discovery.[/dim]"
             )
 
     discovered = ip.discover_provider_mappings(

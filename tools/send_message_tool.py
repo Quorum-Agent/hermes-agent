@@ -14,6 +14,7 @@ import time
 
 from agent.redact import redact_sensitive_text
 from agent.secret_scope import get_secret
+from hermes_constants import display_hermes_home
 
 logger = logging.getLogger(__name__)
 
@@ -427,9 +428,9 @@ def _handle_send(args):
                     },
                 )
             else:
-                return tool_error(f"Platform '{platform_name}' is not configured. Set up credentials in ~/.hermes/config.yaml or environment variables.")
+                return tool_error(f"Platform '{platform_name}' is not configured. Set up credentials in {display_hermes_home()}/config.yaml or environment variables.")
         else:
-            return tool_error(f"Platform '{platform_name}' is not configured. Set up credentials in ~/.hermes/config.yaml or environment variables.")
+            return tool_error(f"Platform '{platform_name}' is not configured. Set up credentials in {display_hermes_home()}/config.yaml or environment variables.")
 
     from gateway.platforms.base import BasePlatformAdapter
 

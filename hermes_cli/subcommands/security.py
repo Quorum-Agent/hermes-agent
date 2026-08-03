@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import HOME_DIR_NAME
+
 
 def build_security_parser(subparsers, *, cmd_security: Callable) -> None:
     """Attach the ``security`` subcommand to ``subparsers``."""
@@ -18,7 +20,7 @@ def build_security_parser(subparsers, *, cmd_security: Callable) -> None:
         description=(
             "On-demand vulnerability scan against OSV.dev. Covers the Hermes "
             "venv (installed PyPI dists), Python deps declared by plugins under "
-            "~/.hermes/plugins/, and pinned npx/uvx MCP servers in config.yaml. "
+            f"~/{HOME_DIR_NAME}/plugins/, and pinned npx/uvx MCP servers in config.yaml. "
             "Does NOT scan globally-installed packages or editor/browser extensions."
         ),
     )

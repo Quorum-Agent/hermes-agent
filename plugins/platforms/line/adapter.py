@@ -1687,6 +1687,8 @@ def interactive_setup() -> None:
     Mirrors the irc/teams style: prompts for the two required vars, plus
     one optional public URL. Writes to ``~/.hermes/.env`` via ``hermes_cli.config``.
     """
+    from hermes_constants import display_hermes_home
+
     print()
     print("LINE Messaging API setup")
     print("------------------------")
@@ -1697,7 +1699,7 @@ def interactive_setup() -> None:
     try:
         from hermes_cli.config import get_env_var, set_env_var
     except ImportError:
-        print("hermes_cli.config not available; set LINE_* vars manually in ~/.hermes/.env")
+        print(f"hermes_cli.config not available; set LINE_* vars manually in {display_hermes_home()}/.env")
         return
 
     def _prompt(var: str, prompt: str, *, secret: bool = False) -> None:

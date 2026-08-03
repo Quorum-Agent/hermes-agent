@@ -72,6 +72,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from agent.skill_utils import is_excluded_skill_path
 from hermes_cli._subprocess_compat import noninteractive_git_env
+from product_identity import HOME_DIR_NAME
 
 
 # ---------------------------------------------------------------------------
@@ -519,7 +520,7 @@ def plan_install(
     if canon == "default":
         raise DistributionError(
             "Cannot install a distribution as 'default' — that is the built-in "
-            "root profile (~/.hermes).  Pass --name <name> to install under a "
+            f"root profile (~/{HOME_DIR_NAME}).  Pass --name <name> to install under a "
             "new profile."
         )
     manifest.name = canon

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import HOME_DIR_NAME
+
 
 def build_approvals_parser(subparsers, *, cmd_approvals: Callable) -> None:
     """Attach the ``approvals`` subcommand to ``subparsers``."""
@@ -71,7 +73,7 @@ def build_approvals_parser(subparsers, *, cmd_approvals: Callable) -> None:
     )
     suggest_parser.add_argument(
         "--db",
-        help="Path to an alternate session database (default: ~/.hermes/state.db)",
+        help=f"Path to an alternate session database (default: ~/{HOME_DIR_NAME}/state.db)",
     )
     suggest_parser.set_defaults(func=cmd_approvals)
     approvals_parser.set_defaults(func=cmd_approvals)

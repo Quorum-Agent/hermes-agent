@@ -3437,6 +3437,7 @@ def interactive_setup() -> None:
         prompt_yes_no,
     )
     from hermes_cli.config import get_env_value, save_env_value
+    from hermes_constants import display_hermes_home
 
     existing_sub = get_env_value("GOOGLE_CHAT_SUBSCRIPTION_NAME")
     if existing_sub:
@@ -3508,7 +3509,7 @@ def interactive_setup() -> None:
         save_env_value("GOOGLE_CHAT_HOME_CHANNEL", home.strip())
 
     print()
-    print_success("Google Chat configuration saved to ~/.hermes/.env")
+    print_success(f"Google Chat configuration saved to {display_hermes_home()}/.env")
     print_info("Restart the gateway: hermes gateway restart")
 
 

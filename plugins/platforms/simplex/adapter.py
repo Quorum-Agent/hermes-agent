@@ -1294,6 +1294,8 @@ def interactive_setup() -> None:
     auto-accept / home channel. Writes to ``~/.hermes/.env`` via
     ``hermes_cli.config``.
     """
+    from hermes_constants import display_hermes_home
+
     print()
     print("SimpleX Chat setup")
     print("------------------")
@@ -1307,7 +1309,7 @@ def interactive_setup() -> None:
     except ImportError:
         print(
             "hermes_cli.config not available; set SIMPLEX_* vars manually in "
-            "~/.hermes/.env"
+            f"{display_hermes_home()}/.env"
         )
         return
 

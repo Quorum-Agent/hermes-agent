@@ -83,6 +83,7 @@ def _cmd_approve(store, platform: str, code: str):
         # and lockout. Tell the operator it's lockout so they don't chase
         # a "wrong code" rabbit hole (#10195).
         import time as _time
+        from hermes_constants import display_hermes_home
         limits = store._load_json(store._rate_limit_path())
         lockout_until = limits.get(f"_lockout:{platform}", 0)
         remaining = max(0, int(lockout_until - _time.time()))
@@ -93,8 +94,8 @@ def _cmd_approve(store, platform: str, code: str):
         )
         print(f"  Lockout clears in ~{mins} minute(s).")
         print(
-            "  To reset sooner, delete the '_lockout:{0}' entry from "
-            "~/.hermes/platforms/pairing/_rate_limits.json\n".format(platform)
+            f"  To reset sooner, delete the '_lockout:{platform}' entry from "
+            f"{display_hermes_home()}/platforms/pairing/_rate_limits.json\n"
         )
     else:
         print(f"\n  Pairing request or code '{code}' not found or expired for platform '{platform}'.")

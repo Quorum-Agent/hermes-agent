@@ -50,7 +50,7 @@ from hermes_cli.config import (
     read_raw_config,
     require_readable_config_before_write,
 )
-from hermes_constants import OPENROUTER_BASE_URL, secure_parent_dir
+from hermes_constants import OPENROUTER_BASE_URL, display_hermes_home, secure_parent_dir
 from agent.credential_persistence import sanitize_borrowed_credential_payload
 from utils import atomic_replace, atomic_yaml_write, env_float, is_truthy_value
 
@@ -2082,7 +2082,7 @@ def resolve_provider(
     raise AuthError(
         "No inference provider configured. Run 'hermes model' to choose a "
         "provider and model, or set an API key (OPENROUTER_API_KEY, "
-        "OPENAI_API_KEY, etc.) in ~/.hermes/.env.",
+        f"OPENAI_API_KEY, etc.) in ~/{HOME_DIR_NAME}/.env.",
         code="no_provider_configured",
     )
 
@@ -3195,7 +3195,7 @@ def _spotify_interactive_setup(redirect_uri_hint: str) -> str:
         save_env_value("HERMES_SPOTIFY_REDIRECT_URI", redirect_uri_hint)
 
     print()
-    print("Saved HERMES_SPOTIFY_CLIENT_ID to ~/.hermes/.env")
+    print(f"Saved HERMES_SPOTIFY_CLIENT_ID to {display_hermes_home()}/.env")
     print()
     return raw
 
@@ -5661,7 +5661,7 @@ def _refresh_access_token(
             "Nous Portal detected refresh-token reuse and revoked this session.\n"
             "This usually means an external process (monitoring script, "
             "custom self-heal hook, or another Hermes install sharing "
-            "~/.hermes/auth.json) called POST /api/oauth/token with Hermes's "
+            f"~/{HOME_DIR_NAME}/auth.json) called POST /api/oauth/token with Hermes's "
             "refresh token without persisting the rotated token back.\n"
             "Nous refresh tokens are single-use — only Hermes may call the "
             "refresh endpoint. For health checks, use `hermes auth status` "

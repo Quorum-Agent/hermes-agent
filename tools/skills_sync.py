@@ -45,7 +45,12 @@ for _stream in (sys.stdout, sys.stderr):
             _stream.reconfigure(encoding="utf-8", errors="replace")
         except (ValueError, TypeError):
             pass
-from hermes_constants import get_bundled_skills_dir, get_hermes_home, get_optional_skills_dir
+from hermes_constants import (
+    display_hermes_home,
+    get_bundled_skills_dir,
+    get_hermes_home,
+    get_optional_skills_dir,
+)
 from agent.skill_utils import is_excluded_skill_path
 from typing import Dict, List, Optional, Set, Tuple
 from utils import atomic_replace
@@ -1389,7 +1394,7 @@ def remove_pristine_bundled_skills(dry_run: bool = False) -> dict:
 
 
 if __name__ == "__main__":
-    print("Syncing bundled skills into ~/.hermes/skills/ ...")
+    print(f"Syncing bundled skills into {display_hermes_home()}/skills/ ...")
     result = sync_skills(quiet=False)
     parts = [
         f"{len(result['copied'])} new",

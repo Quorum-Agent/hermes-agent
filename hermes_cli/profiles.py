@@ -33,6 +33,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import List, Optional, Tuple
 
 from agent.skill_utils import is_excluded_skill_path
+from product_identity import HOME_DIR_NAME
 
 _PROFILE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
@@ -1034,7 +1035,7 @@ def create_profile(
 
     if canon == "default":
         raise ValueError(
-            "Cannot create a profile named 'default' — it is the built-in profile (~/.hermes)."
+            f"Cannot create a profile named 'default' — it is the built-in profile (~/{HOME_DIR_NAME})."
         )
 
     profile_dir = get_profile_dir(canon)
@@ -1474,7 +1475,7 @@ def delete_profile(name: str, yes: bool = False) -> Path:
 
     if canon == "default":
         raise ValueError(
-            "Cannot delete the default profile (~/.hermes).\n"
+            f"Cannot delete the default profile (~/{HOME_DIR_NAME}).\n"
             "To remove everything, use: hermes uninstall"
         )
 
@@ -2053,7 +2054,7 @@ def import_profile(archive_path: str, name: Optional[str] = None) -> Path:
     validate_profile_name(canon)
     if canon == "default":
         raise ValueError(
-            "Cannot import as 'default' — that is the built-in root profile (~/.hermes). "
+            f"Cannot import as 'default' — that is the built-in root profile (~/{HOME_DIR_NAME}). "
             "Specify a different name: hermes profile import <archive> --name <name>"
         )
 

@@ -36,6 +36,7 @@ import os
 import sys
 from pathlib import Path
 from hermes_constants import get_hermes_home
+from product_identity import HOME_DIR_NAME
 
 
 # Methods clients send as periodic liveness probes. They are not part of the
@@ -133,7 +134,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--setup-browser",
         action="store_true",
-        help="Install agent-browser + Playwright Chromium into ~/.hermes/node/ "
+        help=f"Install agent-browser + Playwright Chromium into ~/{HOME_DIR_NAME}/node/ "
              "for browser tool support. Idempotent.",
     )
     parser.add_argument(
