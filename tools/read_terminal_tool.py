@@ -11,6 +11,7 @@ over the platform-injected callback.
 import json
 from typing import Callable, Optional
 
+from product_identity import PRODUCT_NAME
 from tools.registry import registry, tool_error
 from utils import env_var_enabled
 
@@ -22,7 +23,7 @@ def read_terminal_tool(
 ) -> str:
     """Return the in-app terminal's contents (+ line metadata) as a JSON string."""
     if callback is None:
-        return tool_error("read_terminal is only available in the Hermes desktop app.")
+        return tool_error(f"read_terminal is only available in the {PRODUCT_NAME} desktop app.")
 
     try:
         window = {

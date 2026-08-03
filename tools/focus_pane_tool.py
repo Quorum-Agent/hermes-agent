@@ -9,6 +9,7 @@ never moves the user's focus). To show a URL/file, use ``open_preview``.
 
 import json
 
+from product_identity import PRODUCT_NAME
 from tools import desktop_ui
 from tools.registry import registry, tool_error
 from utils import env_var_enabled
@@ -27,7 +28,7 @@ def focus_pane_tool(pane: str) -> str:
     except Exception as exc:
         return tool_error(f"Failed to focus the {name} pane: {exc}")
     if not ok:
-        return tool_error("Pane focus is only available in the Hermes desktop app.")
+        return tool_error(f"Pane focus is only available in the {PRODUCT_NAME} desktop app.")
 
     return json.dumps({"success": True, "pane": name}, ensure_ascii=False)
 
