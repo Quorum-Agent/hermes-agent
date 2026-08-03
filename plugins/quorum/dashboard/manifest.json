@@ -1,0 +1,15 @@
+{
+  "name": "quorum",
+  "label": "Quorum",
+  "description": "Quorum routing settings and process-local decision inspection.",
+  "icon": "ShieldCheck",
+  "version": "0.1.0",
+  "tab": {
+    "path": "/quorum",
+    "position": "end",
+    "hidden": true
+  },
+  "entry": "dist/index.js",
+  "api": "plugin_api.py"
+}
+

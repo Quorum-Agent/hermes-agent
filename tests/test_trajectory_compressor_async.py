@@ -11,9 +11,23 @@ each asyncio.run() gets a client bound to the current loop.
 """
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _permissive_quorum_dispatch(monkeypatch):
+    from agent import quorum_dispatch
+
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_load_settings",
+        lambda: quorum_dispatch.DispatchSettings(
+            default_policy="balanced",
+            cloud_consent=True,
+        ),
+    )
 
 
 class TestAsyncClientLazyCreation:
@@ -131,7 +145,8 @@ async def test_generate_summary_async_kimi_omits_temperature():
     compressor.logger = MagicMock()
     compressor._use_call_llm = False
     async_client = MagicMock()
-    async_client.chat.completions.create = MagicMock(return_value=SimpleNamespace(
+    async_client.base_url = config.base_url
+    async_client.chat.completions.create = AsyncMock(return_value=SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="[CONTEXT SUMMARY]: summary"))]
     ))
     compressor._get_async_client = MagicMock(return_value=async_client)
@@ -141,6 +156,45 @@ async def test_generate_summary_async_kimi_omits_temperature():
 
     assert result.startswith("[CONTEXT SUMMARY]:")
     assert "temperature" not in async_client.chat.completions.create.call_args.kwargs
+
+
+@pytest.mark.asyncio
+async def test_generate_summary_async_private_policy_never_invokes_custom_provider(
+    monkeypatch,
+):
+    from agent import quorum_dispatch
+    from trajectory_compressor import (
+        CompressionConfig,
+        TrajectoryCompressor,
+        TrajectoryMetrics,
+    )
+
+    monkeypatch.setattr(
+        quorum_dispatch,
+        "_load_settings",
+        lambda: quorum_dispatch.DispatchSettings(default_policy="private"),
+    )
+    config = CompressionConfig(
+        base_url="https://api.example.com/v1",
+        summarization_model="remote-model",
+        max_retries=1,
+    )
+    compressor = TrajectoryCompressor.__new__(TrajectoryCompressor)
+    compressor.config = config
+    compressor.logger = MagicMock()
+    compressor._use_call_llm = False
+    async_client = MagicMock()
+    async_client.base_url = config.base_url
+    async_client.chat.completions.create = AsyncMock()
+    compressor._get_async_client = MagicMock(return_value=async_client)
+
+    result = await compressor._generate_summary_async(
+        "tool output",
+        TrajectoryMetrics(),
+    )
+
+    assert "Summary generation failed" in result
+    async_client.chat.completions.create.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -160,7 +214,8 @@ async def test_generate_summary_async_public_moonshot_kimi_k2_5_omits_temperatur
     compressor.logger = MagicMock()
     compressor._use_call_llm = False
     async_client = MagicMock()
-    async_client.chat.completions.create = MagicMock(return_value=SimpleNamespace(
+    async_client.base_url = config.base_url
+    async_client.chat.completions.create = AsyncMock(return_value=SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="[CONTEXT SUMMARY]: summary"))]
     ))
     compressor._get_async_client = MagicMock(return_value=async_client)
@@ -189,7 +244,8 @@ async def test_generate_summary_async_public_moonshot_cn_kimi_k2_5_omits_tempera
     compressor.logger = MagicMock()
     compressor._use_call_llm = False
     async_client = MagicMock()
-    async_client.chat.completions.create = MagicMock(return_value=SimpleNamespace(
+    async_client.base_url = config.base_url
+    async_client.chat.completions.create = AsyncMock(return_value=SimpleNamespace(
         choices=[SimpleNamespace(message=SimpleNamespace(content="[CONTEXT SUMMARY]: summary"))]
     ))
     compressor._get_async_client = MagicMock(return_value=async_client)

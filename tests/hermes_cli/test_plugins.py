@@ -1002,9 +1002,32 @@ class TestPluginDispatchTool:
         with patch("hermes_cli.plugins.PluginContext.dispatch_tool.__module__", "hermes_cli.plugins"):
             with patch.dict("sys.modules", {}):
                 with patch("tools.registry.registry", mock_registry):
-                    result = ctx.dispatch_tool("web_search", {"query": "test"})
+                    result = ctx.dispatch_tool("terminal", {"command": "echo test"})
 
         assert result == '{"result": "ok"}'
+
+    def test_dispatch_tool_blocks_network_tool_before_registry(self, monkeypatch):
+        """A supported plugin API cannot bypass Quorum's tool boundary."""
+        from agent import quorum_dispatch
+
+        monkeypatch.setattr(
+            quorum_dispatch,
+            "_load_settings",
+            lambda: quorum_dispatch.DispatchSettings(default_policy="private"),
+        )
+        mgr = PluginManager()
+        manifest = PluginManifest(name="test-plugin", source="user")
+        ctx = PluginContext(manifest, mgr)
+        mock_registry = MagicMock()
+
+        with patch("tools.registry.registry", mock_registry):
+            # An earlier module-isolation test deliberately reloads the agent
+            # package, so assert the stable public RuntimeError base rather
+            # than depending on exception-class object identity.
+            with pytest.raises(RuntimeError, match="web_search"):
+                ctx.dispatch_tool("web_search", {"query": "test"})
+
+        mock_registry.dispatch.assert_not_called()
 
 
     def test_dispatch_tool_respects_explicit_parent_agent(self):
@@ -1088,8 +1111,17 @@ class TestDispatchToolWithoutCliRef:
     kanban-spawned worker session, where _cli_ref is None.
     """
 
-    def test_dispatch_tool_invokes_handler_without_cli_ref(self):
+    def test_dispatch_tool_invokes_handler_without_cli_ref(self, monkeypatch):
         from tools.registry import registry
+        from agent import quorum_dispatch
+
+        monkeypatch.setattr(
+            quorum_dispatch,
+            "_load_settings",
+            lambda: quorum_dispatch.DispatchSettings(
+                default_policy="balanced", cloud_consent=True
+            ),
+        )
 
         mgr = PluginManager()
         assert mgr._cli_ref is None  # worker/hook context

@@ -1,0 +1,13 @@
+# Quorum Edition ownership. Keep this factual even when a branch rule does not
+# require a second approver (the project may initially have one maintainer).
+* @Chance6706
+
+# Load-bearing dispatch and distribution surfaces.
+/agent/quorum_dispatch.py @Chance6706
+/agent/relay_llm.py @Chance6706
+/hermes_routing/ @Chance6706
+/plugins/quorum/ @Chance6706
+/quorum-companion/ @Chance6706
+/.github/workflows/quorum-release.yml @Chance6706
+/apps/desktop/electron/product-identity.ts @Chance6706
+/product_identity.py @Chance6706

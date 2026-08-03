@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from hermes_constants import get_default_hermes_root
+from product_identity import PRODUCT_NAME
 
 _HEX32 = re.compile(r"[0-9a-f]{32}\Z")
 _HEX16 = re.compile(r"[0-9a-f]{16}\Z")
@@ -443,10 +444,15 @@ def inspect_hermes(hermes_path: str) -> dict[str, Any]:
     version = subprocess.run([path, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20)
     help_result = subprocess.run([path, "serve", "--help"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20)
     help_text = help_result.stdout + help_result.stderr
+    version_text = (version.stdout + version.stderr).splitlines()[0] if version.returncode == 0 else ""
+    identity_supported = version_text.startswith(f"{PRODUCT_NAME} v")
+    capability_supported = "--ssh-session-token-file" in help_text and "--ssh-owner-nonce" in help_text
     return {
         "path": path,
-        "version": (version.stdout + version.stderr).splitlines()[0] if version.returncode == 0 else "",
-        "supported": "--ssh-session-token-file" in help_text and "--ssh-owner-nonce" in help_text,
+        "version": version_text,
+        "identitySupported": identity_supported,
+        "capabilitySupported": capability_supported,
+        "supported": identity_supported and capability_supported,
     }
 
 

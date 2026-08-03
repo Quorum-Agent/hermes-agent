@@ -28,6 +28,8 @@ from __future__ import annotations
 import os
 import sys
 
+from product_identity import HOME_DIR_NAME
+
 __all__ = [
     "project_root_str",
     "ensure_project_root_on_path",
@@ -109,7 +111,7 @@ def _resolved_home() -> str:
     hermes_home = os.environ.get("HERMES_HOME", "").strip()
     if hermes_home:
         return hermes_home
-    return os.path.join(os.path.expanduser("~"), ".hermes")
+    return os.path.join(os.path.expanduser("~"), HOME_DIR_NAME)
 
 
 def container_mode_may_be_active() -> bool:
@@ -136,7 +138,7 @@ def container_mode_may_be_active() -> bool:
             and active_profile_may_override_home(hermes_home)
         )
 
-    default_home = os.path.join(os.path.expanduser("~"), ".hermes")
+    default_home = os.path.join(os.path.expanduser("~"), HOME_DIR_NAME)
     if active_profile_may_override_home(default_home):
         return True
     return os.path.exists(os.path.join(default_home, ".container-mode"))
@@ -182,8 +184,9 @@ def read_install_method() -> str | None:
 
 def print_fast_version_info() -> None:
     from hermes_cli import __release_date__, __version__
+    from product_identity import PRODUCT_NAME
 
-    print(f"Hermes Agent v{__version__} ({__release_date__})")
+    print(f"{PRODUCT_NAME} v{__version__} ({__release_date__})")
     print(f"Install directory: {project_root_str()}")
     install_method = read_install_method()
     if install_method:

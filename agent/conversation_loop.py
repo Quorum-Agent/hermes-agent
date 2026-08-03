@@ -2389,6 +2389,7 @@ def run_conversation(
                         model_name=str(agent.model or ""),
                         metadata={
                             "api_mode": agent.api_mode,
+                            "base_url": str(agent.base_url or ""),
                             "api_request_id": api_request_id,
                             "call_role": (
                                 "delegated"

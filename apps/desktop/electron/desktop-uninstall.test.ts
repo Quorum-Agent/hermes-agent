@@ -81,6 +81,10 @@ test('resolveRemovableAppPath: dev-run .app resolves (safety is shouldRemoveAppB
 
 test('resolveRemovableAppPath finds the install dir on Windows', () => {
   assert.equal(
+    resolveRemovableAppPath('C:\\Users\\x\\AppData\\Local\\Programs\\Quorum\\Quorum.exe', 'win32'),
+    'C:\\Users\\x\\AppData\\Local\\Programs\\Quorum'
+  )
+  assert.equal(
     resolveRemovableAppPath('C:\\Users\\x\\AppData\\Local\\Programs\\Hermes\\Hermes.exe', 'win32'),
     'C:\\Users\\x\\AppData\\Local\\Programs\\Hermes'
   )

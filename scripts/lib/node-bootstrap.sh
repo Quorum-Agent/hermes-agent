@@ -20,12 +20,13 @@
 # Env inputs (set before sourcing to override defaults):
 #   HERMES_NODE_MIN_VERSION   (default: 20)   — accepted on PATH
 #   HERMES_NODE_TARGET_MAJOR  (default: 22)   — installed when we install
-#   HERMES_HOME               (default: $HOME/.hermes)
+#   HERMES_HOME               (default: $HOME/.quorum)
 # ============================================================================
 
 HERMES_NODE_MIN_VERSION="${HERMES_NODE_MIN_VERSION:-20}"
 HERMES_NODE_TARGET_MAJOR="${HERMES_NODE_TARGET_MAJOR:-22}"
-HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
+HERMES_NODE_BOOTSTRAP_VERSION="${HERMES_NODE_BOOTSTRAP_VERSION:-22.22.0}"
+HERMES_HOME="${HERMES_HOME:-$HOME/.quorum}"
 HERMES_NODE_AVAILABLE=false
 
 # ---------------------------------------------------------------------------
@@ -258,20 +259,8 @@ _nb_install_bundled_node() {
             ;;
     esac
 
-    local index_url="https://nodejs.org/dist/latest-v${HERMES_NODE_TARGET_MAJOR}.x/"
-    local tarball
-    tarball=$(curl -fsSL "$index_url" \
-        | grep -oE "node-v${HERMES_NODE_TARGET_MAJOR}\.[0-9]+\.[0-9]+-${node_os}-${node_arch}\.tar\.xz" \
-        | head -1)
-    if [ -z "$tarball" ]; then
-        tarball=$(curl -fsSL "$index_url" \
-            | grep -oE "node-v${HERMES_NODE_TARGET_MAJOR}\.[0-9]+\.[0-9]+-${node_os}-${node_arch}\.tar\.gz" \
-            | head -1)
-    fi
-    if [ -z "$tarball" ]; then
-        _nb_warn "Could not resolve Node $HERMES_NODE_TARGET_MAJOR binary for $node_os-$node_arch"
-        return 1
-    fi
+    local index_url="https://nodejs.org/dist/v${HERMES_NODE_BOOTSTRAP_VERSION}/"
+    local tarball="node-v${HERMES_NODE_BOOTSTRAP_VERSION}-${node_os}-${node_arch}.tar.xz"
 
     local tmp
     tmp=$(mktemp -d)
@@ -279,13 +268,24 @@ _nb_install_bundled_node() {
     curl -fsSL "${index_url}${tarball}" -o "$tmp/$tarball" || {
         _nb_warn "Download failed"; rm -rf "$tmp"; return 1
     }
+    curl -fsSL "${index_url}SHASUMS256.txt" -o "$tmp/SHASUMS256.txt" || {
+        _nb_warn "Official checksum manifest download failed"; rm -rf "$tmp"; return 1
+    }
+    local expected_sha actual_sha
+    expected_sha="$(awk -v name="$tarball" '$2 == name {print $1}' "$tmp/SHASUMS256.txt")"
+    if command -v sha256sum >/dev/null 2>&1; then
+        actual_sha="$(sha256sum "$tmp/$tarball" | awk '{print $1}')"
+    else
+        actual_sha="$(shasum -a 256 "$tmp/$tarball" | awk '{print $1}')"
+    fi
+    if [ -z "$expected_sha" ] || [ "$actual_sha" != "$expected_sha" ]; then
+        _nb_warn "Node archive checksum verification failed"
+        rm -rf "$tmp"
+        return 1
+    fi
 
     _nb_log "Extracting to $HERMES_HOME/node/..."
-    if [[ "$tarball" == *.tar.xz ]]; then
-        tar xf  "$tmp/$tarball" -C "$tmp" || { rm -rf "$tmp"; return 1; }
-    else
-        tar xzf "$tmp/$tarball" -C "$tmp" || { rm -rf "$tmp"; return 1; }
-    fi
+    tar xf "$tmp/$tarball" -C "$tmp" || { rm -rf "$tmp"; return 1; }
 
     local extracted
     extracted=$(find "$tmp" -maxdepth 1 -type d -name 'node-v*' 2>/dev/null | head -1)

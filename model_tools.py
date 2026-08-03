@@ -1106,6 +1106,7 @@ def handle_function_call(
     skip_pre_tool_call_hook: bool = False,
     skip_tool_request_middleware: bool = False,
     skip_tool_execution_middleware: bool = False,
+    quorum_policy_checked: bool = False,
     tool_request_middleware_trace: Optional[List[Dict[str, Any]]] = None,
     enabled_toolsets: Optional[List[str]] = None,
     disabled_toolsets: Optional[List[str]] = None,
@@ -1214,6 +1215,7 @@ def handle_function_call(
                 skip_pre_tool_call_hook=skip_pre_tool_call_hook,
                 skip_tool_request_middleware=skip_tool_request_middleware,
                 skip_tool_execution_middleware=skip_tool_execution_middleware,
+                quorum_policy_checked=quorum_policy_checked,
                 tool_request_middleware_trace=list(_tool_middleware_trace),
                 enabled_toolsets=enabled_toolsets,
                 disabled_toolsets=disabled_toolsets,
@@ -1338,6 +1340,14 @@ def handle_function_call(
                 # the parent's tool set via the process-global.
                 sandbox_enabled = enabled_tools if enabled_tools is not None else _last_resolved_tool_names
                 def _dispatch(next_args: Dict[str, Any]) -> Any:
+                    if not quorum_policy_checked:
+                        from agent.quorum_dispatch import enforce_tool_dispatch
+
+                        enforce_tool_dispatch(
+                            function_name,
+                            args=next_args,
+                            session_id=session_id or "",
+                        )
                     return registry.dispatch(
                         function_name, next_args,
                         task_id=task_id,
@@ -1346,6 +1356,14 @@ def handle_function_call(
                     )
             else:
                 def _dispatch(next_args: Dict[str, Any]) -> Any:
+                    if not quorum_policy_checked:
+                        from agent.quorum_dispatch import enforce_tool_dispatch
+
+                        enforce_tool_dispatch(
+                            function_name,
+                            args=next_args,
+                            session_id=session_id or "",
+                        )
                     return registry.dispatch(
                         function_name, next_args,
                         task_id=task_id,

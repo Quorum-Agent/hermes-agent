@@ -628,6 +628,20 @@ class PluginContext:
             if agent is not None:
                 kwargs["parent_agent"] = agent
 
+        parent_agent = kwargs.get("parent_agent")
+        session_id = str(getattr(parent_agent, "session_id", "") or "")
+        from agent.quorum_dispatch import enforce_tool_dispatch
+
+        # This public plugin seam is a real execution boundary: slash-command
+        # plugins must not be able to skip the mandatory guard by reaching the
+        # registry directly.  Unknown plugin tools remain fail-closed unless a
+        # consented policy explicitly permits network-capable dispatch.
+        enforce_tool_dispatch(
+            tool_name,
+            args=args,
+            session_id=session_id,
+            call_role=f"plugin:{self.manifest.name}",
+        )
         return registry.dispatch(tool_name, args, **kwargs)
 
     # -- context engine registration -----------------------------------------

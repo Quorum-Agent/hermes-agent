@@ -1,19 +1,15 @@
 #!/usr/bin/env node
-// set-exe-identity.mjs — stamp the Hermes icon + version metadata onto the
-// built Hermes.exe using rcedit, completely decoupled from electron-builder's
+// set-exe-identity.mjs — stamp the Quorum icon + version metadata onto the
+// built Quorum.exe using rcedit, completely decoupled from electron-builder's
 // signing path.
 //
 // WHY THIS EXISTS
 // ---------------
-// apps/desktop/package.json sets build.win.signAndEditExecutable=false. That
-// flag is load-bearing: turning electron-builder's own exe-editing ON also
-// re-enables its signtool step, which fetches winCodeSign-2.6.0.7z, whose
-// macOS symlinks crash 7-Zip on non-admin Windows (no Developer Mode = no
-// SeCreateSymbolicLinkPrivilege). That is an unfixable dead end — we do NOT
-// try to extract winCodeSign.
+// apps/desktop/package.json enables build.win.signAndEditExecutable. This
+// setting is load-bearing for the stable Authenticode release path.
 //
-// The cost of disabling signAndEditExecutable is that electron-builder also
-// skips rcedit, so the unpacked Hermes.exe keeps the stock Electron icon and
+// The explicit identity pass remains useful as defense in depth when a local
+// packaging path skips rcedit, so the unpacked Quorum.exe keeps the stock Electron icon and
 // "Electron" taskbar name. This script restores the icon + identity by calling
 // rcedit DIRECTLY. rcedit is a pure PE resource editor: no signing, no certs,
 // no winCodeSign, no symlinks.
@@ -28,7 +24,7 @@
 // shipped a stock "Electron" exe. Keeping it in afterPack closes that gap.
 //
 // Also runnable standalone for ad-hoc re-stamping:
-//   node scripts/set-exe-identity.mjs <path-to-Hermes.exe>
+//   node scripts/set-exe-identity.mjs <path-to-Quorum.exe>
 //
 // Exits 0 on success, non-zero on failure when run as a CLI. As a hook,
 // stampExeIdentity() resolves on success and rejects on failure; the caller
@@ -42,7 +38,7 @@ import { rcedit } from 'rcedit'
 
 import { isMain } from './utils.mjs'
 
-// Stamp the Hermes icon + identity onto `exe`. Resolves on success, throws on
+// Stamp the Quorum icon + identity onto `exe`. Resolves on success, throws on
 // failure. `desktopRoot` defaults to this script's package root so the icon and
 // the rcedit dependency resolve regardless of cwd.
 async function stampExeIdentity(exe, desktopRoot = resolve(import.meta.dirname, '..')) {
@@ -62,14 +58,14 @@ async function stampExeIdentity(exe, desktopRoot = resolve(import.meta.dirname, 
   await rcedit(exe, {
     icon,
     'version-string': {
-      ProductName: 'Hermes',
-      FileDescription: 'Hermes',
-      CompanyName: 'Nous Research',
-      LegalCopyright: 'Copyright (c) 2026 Nous Research'
+      ProductName: 'Quorum',
+      FileDescription: 'Quorum Edition (based on Hermes Agent)',
+      CompanyName: 'Quorum Agent',
+      LegalCopyright: 'Copyright (c) 2026 Quorum Agent. Based on Hermes Agent by Nous Research.'
     }
   })
 
-  console.log('[set-exe-identity] done — Hermes icon + identity stamped')
+  console.log('[set-exe-identity] done — Quorum icon + identity stamped')
 }
 
 export { stampExeIdentity }

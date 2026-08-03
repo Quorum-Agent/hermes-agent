@@ -411,6 +411,23 @@ def _run_agent_tool_execution_middleware(
         block_message = scope_block
         block_error_type = "tool_scope_block"
         if block_message is None:
+            try:
+                from agent.quorum_dispatch import enforce_tool_dispatch
+
+                enforce_tool_dispatch(
+                    function_name,
+                    args=final_args,
+                    session_id=str(getattr(agent, "session_id", "") or ""),
+                )
+            except Exception as exc:
+                from agent.quorum_dispatch import QuorumPolicyError
+
+                if isinstance(exc, QuorumPolicyError):
+                    block_message = str(exc)
+                    block_error_type = "quorum_policy_block"
+                else:
+                    raise
+        if block_message is None:
             block_error_type = "plugin_block"
 
             def _resolve_pre_tool_block():
@@ -822,6 +839,7 @@ def execute_tool_calls_concurrent(agent, assistant_message, messages: list, effe
                         pre_tool_block_checked=True,
                         skip_tool_request_middleware=True,
                         skip_tool_execution_middleware=True,
+                        quorum_policy_checked=True,
                         tool_request_middleware_trace=list(middleware_trace),
                     )
 
@@ -1704,6 +1722,7 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                         skip_pre_tool_call_hook=True,
                         skip_tool_request_middleware=True,
                         skip_tool_execution_middleware=True,
+                        quorum_policy_checked=True,
                         tool_request_middleware_trace=list(middleware_trace),
                         enabled_toolsets=getattr(agent, "enabled_toolsets", None),
                         disabled_toolsets=getattr(agent, "disabled_toolsets", None),
@@ -1782,6 +1801,7 @@ def execute_tool_calls_sequential(agent, assistant_message, messages: list, effe
                         skip_pre_tool_call_hook=True,
                         skip_tool_request_middleware=True,
                         skip_tool_execution_middleware=True,
+                        quorum_policy_checked=True,
                         tool_request_middleware_trace=list(middleware_trace),
                         enabled_toolsets=getattr(agent, "enabled_toolsets", None),
                         disabled_toolsets=getattr(agent, "disabled_toolsets", None),

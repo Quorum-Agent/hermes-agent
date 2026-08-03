@@ -24,6 +24,33 @@ _RELAY_INTERNAL_PROVIDER_HEADERS = frozenset(
 )
 
 
+def _quorum_guard_request(
+    request: dict[str, Any],
+    *,
+    session_id: str,
+    name: str,
+    model_name: str,
+    metadata: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Apply the mandatory edition gate to the final physical request.
+
+    This deliberately lives below ordinary Hermes/Relay middleware. A plugin
+    may reshape a request, but it cannot bypass or fail open around Quorum's
+    dispatch ceilings.
+    """
+
+    from agent.quorum_dispatch import enforce_model_request
+
+    return enforce_model_request(
+        request,
+        provider=name,
+        model=model_name,
+        base_url=str((metadata or {}).get("base_url") or ""),
+        session_id=session_id,
+        call_role=str((metadata or {}).get("call_role") or "primary"),
+    )
+
+
 def execute(
     request: dict[str, Any],
     callback: Callable[[dict[str, Any]], Any],
@@ -37,7 +64,15 @@ def execute(
     """Run one non-streaming physical provider attempt through Relay."""
     runtime, session, parent = relay_runtime.resolve_execution_context(session_id)
     if runtime is None or session is None or not runtime.managed_execution_enabled():
-        return callback(request)
+        return callback(
+            _quorum_guard_request(
+                request,
+                session_id=session_id,
+                name=name,
+                model_name=model_name,
+                metadata=metadata,
+            )
+        )
     logical = _logical_parent(runtime, session, parent, metadata)
     parent = logical[1] if logical is not None else parent
 
@@ -61,6 +96,13 @@ def execute(
                 next_request,
                 relay_request_body=relay_request_body,
                 codec_baseline_body=codec_baseline_body,
+                metadata=metadata,
+            )
+            final_request = _quorum_guard_request(
+                final_request,
+                session_id=session_id,
+                name=name,
+                model_name=model_name,
                 metadata=metadata,
             )
             raw = callback_context.copy().run(callback, final_request)
@@ -122,7 +164,15 @@ async def execute_async(
     """Run one asynchronous physical provider attempt through Relay."""
     runtime, session, parent = relay_runtime.resolve_execution_context(session_id)
     if runtime is None or session is None or not runtime.managed_execution_enabled():
-        return await callback(request)
+        return await callback(
+            _quorum_guard_request(
+                request,
+                session_id=session_id,
+                name=name,
+                model_name=model_name,
+                metadata=metadata,
+            )
+        )
     logical = _logical_parent(runtime, session, parent, metadata)
     parent = logical[1] if logical is not None else parent
 
@@ -146,6 +196,13 @@ async def execute_async(
                 next_request,
                 relay_request_body=relay_request_body,
                 codec_baseline_body=codec_baseline_body,
+                metadata=metadata,
+            )
+            final_request = _quorum_guard_request(
+                final_request,
+                session_id=session_id,
+                name=name,
+                model_name=model_name,
                 metadata=metadata,
             )
             async def call_provider() -> Any:
@@ -211,7 +268,15 @@ def execute_current(
     """Run a provider attempt under the inherited Hermes turn when present."""
     turn = relay_runtime.active_turn()
     if turn is None:
-        return callback(request)
+        return callback(
+            _quorum_guard_request(
+                request,
+                session_id="",
+                name=name,
+                model_name=model_name,
+                metadata=metadata,
+            )
+        )
     return execute(
         request,
         callback,
@@ -235,7 +300,15 @@ async def execute_current_async(
     """Run an async provider attempt under the inherited turn when present."""
     turn = relay_runtime.active_turn()
     if turn is None:
-        return await callback(request)
+        return await callback(
+            _quorum_guard_request(
+                request,
+                session_id="",
+                name=name,
+                model_name=model_name,
+                metadata=metadata,
+            )
+        )
     return await execute_async(
         request,
         callback,
@@ -279,7 +352,15 @@ def stream_current(
     """
     turn = relay_runtime.active_turn()
     if turn is None:
-        return stream_factory(request)
+        return stream_factory(
+            _quorum_guard_request(
+                request,
+                session_id="",
+                name=name,
+                model_name=model_name,
+                metadata=metadata,
+            )
+        )
     if _has_running_event_loop():
         # Managed provider callbacks execute on the Relay session's event
         # loop. A nested ManagedLlmStream built here would be synchronously
@@ -290,7 +371,15 @@ def stream_current(
         # own completed_response_predicate traps a completed response (e.g.
         # the MoA facade's auxiliary ``call_llm(stream=True)`` returning a
         # full response when an adapter ignores ``stream=True``).
-        return stream_factory(request)
+        return stream_factory(
+            _quorum_guard_request(
+                request,
+                session_id=turn.lease.session_id,
+                name=name,
+                model_name=model_name,
+                metadata=metadata,
+            )
+        )
     managed = stream(
         request,
         stream_factory,
@@ -396,7 +485,15 @@ class ManagedLlmStream(Iterator[Any]):
             or session is None
             or not runtime.managed_execution_enabled()
         ):
-            raw_stream = stream_factory(request)
+            raw_stream = stream_factory(
+                _quorum_guard_request(
+                    request,
+                    session_id=session_id,
+                    name=name,
+                    model_name=model_name,
+                    metadata=metadata,
+                )
+            )
             if completed_response_predicate is not None and completed_response_predicate(
                 raw_stream
             ):
@@ -426,11 +523,17 @@ class ManagedLlmStream(Iterator[Any]):
             try:
                 raw_stream = run_callback(
                     stream_factory,
-                    _provider_request(
-                        request,
-                        next_request,
-                        relay_request_body=relay_request_body,
-                        codec_baseline_body=codec_baseline_body,
+                    _quorum_guard_request(
+                        _provider_request(
+                            request,
+                            next_request,
+                            relay_request_body=relay_request_body,
+                            codec_baseline_body=codec_baseline_body,
+                            metadata=metadata,
+                        ),
+                        session_id=session_id,
+                        name=name,
+                        model_name=model_name,
                         metadata=metadata,
                     )
                 )

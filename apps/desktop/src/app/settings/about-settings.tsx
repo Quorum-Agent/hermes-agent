@@ -18,10 +18,12 @@ import {
   startActiveUpdate
 } from '@/store/updates'
 
+import { PRODUCT_IDENTITY } from '../../../product-identity.mjs'
+
 import { ListRow, SectionHeading, SettingsContent } from './primitives'
 import { UninstallSection } from './uninstall-section'
 
-const RELEASE_NOTES_URL = 'https://github.com/NousResearch/hermes-agent/releases'
+const RELEASE_NOTES_URL = 'https://github.com/Quorum-Agent/hermes-agent/releases'
 
 function relativeTime(ms: number | undefined, a: Translations['settings']['about']) {
   if (!ms) {
@@ -102,6 +104,7 @@ export function AboutSettings() {
           <p className="mt-1 text-xs text-muted-foreground">
             {version?.appVersion ? a.version(version.appVersion) : a.versionUnavailable}
           </p>
+          <p className="mt-1 text-[0.6875rem] text-muted-foreground">{PRODUCT_IDENTITY.upstreamAttribution}.</p>
         </div>
       </div>
 

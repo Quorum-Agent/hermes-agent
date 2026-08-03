@@ -1,0 +1,475 @@
+name: Quorum desktop release
+
+on:
+  push:
+    tags:
+      - 'quorum-v*'
+  workflow_dispatch:
+    inputs:
+      allow_unsigned_preview:
+        description: Allow an unsigned non-tag preview build
+        required: true
+        type: boolean
+        default: false
+      publish_release:
+        description: Promote the signed draft release after uploading artifacts
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quorum-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-context:
+    name: Verify release authority
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the Quorum-owned repository and immutable tag source
+        env:
+          REPOSITORY: ${{ github.repository }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          EVENT_NAME: ${{ github.event_name }}
+          ALLOW_UNSIGNED_PREVIEW: ${{ inputs.allow_unsigned_preview || false }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import re
+          import subprocess
+          import tomllib
+          from pathlib import Path
+
+          if os.environ['REPOSITORY'].casefold() != 'quorum-agent/hermes-agent':
+              raise SystemExit('Release workflow is authorized only in Quorum-Agent/hermes-agent')
+          if os.environ['REF_TYPE'] != 'tag' and os.environ['ALLOW_UNSIGNED_PREVIEW'] != 'true':
+              raise SystemExit('Non-tag builds require explicit allow_unsigned_preview approval')
+          if os.environ['REF_TYPE'] == 'tag':
+              tag = os.environ['REF_NAME']
+              stable_tag = re.fullmatch(
+                  r'quorum-v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)'
+                  r'(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?',
+                  tag,
+              )
+              if not stable_tag:
+                  raise SystemExit('Stable releases require a quorum-v<semver> tag')
+              tagged_commit = subprocess.check_output(
+                  ['git', 'rev-parse', f'refs/tags/{tag}^{{commit}}'], text=True
+              ).strip()
+              head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+              if tagged_commit != head:
+                  raise SystemExit('Checked-out commit does not match the release tag target')
+              py_version = tomllib.loads(Path('pyproject.toml').read_text())['project']['version']
+              desktop_version = json.loads(Path('apps/desktop/package.json').read_text())['version']
+              tag_version = tag.removeprefix('quorum-v').split('+', 1)[0]
+              if tag_version != py_version or tag_version != desktop_version:
+                  raise SystemExit(
+                      f'Release version mismatch: tag={tag_version}, python={py_version}, desktop={desktop_version}'
+                  )
+              result = subprocess.run(
+                  ['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main'],
+                  check=False,
+              )
+              if result.returncode != 0:
+                  raise SystemExit('Tagged releases must point to a commit reachable from origin/main')
+          if subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip():
+              raise SystemExit('Refusing to release from a dirty checkout')
+          PY
+
+      - name: Validate distribution identity
+        run: |
+          python3 - <<'PY'
+          import product_identity as identity
+          from pathlib import Path
+          from unittest.mock import patch
+
+          import hermes_constants
+
+          assert identity.is_quorum_edition()
+          assert identity.SOURCE_REPOSITORY == 'Quorum-Agent/hermes-agent'
+          assert identity.SOURCE_REPOSITORY != identity.UPSTREAM_REPOSITORY
+          assert identity.HOME_DIR_NAME != '.hermes'
+          with patch.object(hermes_constants.sys, 'platform', 'linux'), \
+               patch.object(Path, 'home', return_value=Path('/tmp/quorum-release-home')), \
+               patch.dict('os.environ', {}, clear=True):
+              assert hermes_constants.get_hermes_home() == Path('/tmp/quorum-release-home/.quorum')
+          PY
+
+  qualification:
+    name: Qualify release source
+    needs: release-context
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          version: '0.9.28'
+          enable-cache: true
+          cache-dependency-glob: |
+            pyproject.toml
+            uv.lock
+
+      - name: Install locked Python qualification environment
+        run: |
+          uv python install 3.11
+          uv sync --locked --python 3.11 \
+            --extra all \
+            --extra dev \
+            --extra anthropic \
+            --extra mistral \
+            --extra fal \
+            --extra modal \
+            --extra daytona \
+            --extra hindsight \
+            --extra parallel-web
+
+      - name: Run the canonical full Python suite
+        shell: bash
+        run: bash scripts/run_tests.sh
+
+      - name: Qualify installer syntax and guarded bootstrap contracts
+        shell: bash
+        run: |
+          bash -n scripts/install.sh
+          pwsh -NoLogo -NoProfile -Command '$tokens=$null; $errors=$null; [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path "scripts/install.ps1"), [ref]$tokens, [ref]$errors) > $null; if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }'
+          uv run --no-sync python -m pytest -q \
+            tests/test_install_ps1_ascii_only.py \
+            tests/test_install_ps1_web_server_syntax_probe.py \
+            tests/test_install_sh_bootstrap_marker.py
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Install pinned npm and desktop dependencies
+        run: |
+          npm install --global npm@12.0.2
+          npm ci
+
+      - name: Qualify desktop types and lint
+        working-directory: apps/desktop
+        run: |
+          npm run typecheck
+          npm run lint
+
+      - name: Run the full Desktop test suite
+        working-directory: apps/desktop
+        run: npm test
+
+      - name: Qualify desktop product, lifecycle, update, media, and Quorum surfaces
+        working-directory: apps/desktop
+        run: |
+          npx vitest run --project electron \
+            electron/product-identity.test.ts \
+            electron/find-git-bash.test.ts \
+            electron/update-remote.test.ts \
+            electron/remote-lifecycle.test.ts \
+            electron/windows-remote-lifecycle.test.ts
+          npx vitest run --project ui \
+            src/lib/media.remote.test.ts \
+            src/plugins/quorum/api.test.ts \
+            src/plugins/quorum/i18n.test.ts
+
+  desktop-packages:
+    name: Package ${{ matrix.target }}
+    needs: [release-context, qualification]
+    environment:
+      name: ${{ github.ref_type == 'tag' && 'quorum-release' || 'quorum-preview' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows
+            package_target: windows
+            architecture: x64
+            runner: windows-2022
+            build_command: npm run dist:win:nsis -- --x64
+          - target: linux
+            package_target: linux
+            architecture: x64
+            runner: ubuntu-24.04
+            build_command: npm run dist:linux -- --x64
+          - target: macos-x64
+            package_target: macos
+            architecture: x64
+            runner: macos-15-intel
+            build_command: npm run dist:mac:dmg -- --x64
+          - target: macos-arm64
+            package_target: macos
+            architecture: arm64
+            runner: macos-15
+            build_command: npm run dist:mac:dmg -- --arm64
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 26
+          cache: npm
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Install pinned npm
+        run: npm install --global npm@12.0.2
+
+      - name: Install workspace dependencies
+        run: npm ci
+
+      - name: Verify desktop identity and update authority
+        working-directory: apps/desktop
+        run: npx vitest run --project electron electron/product-identity.test.ts electron/update-remote.test.ts
+
+      - name: Require Windows Authenticode credentials
+        if: matrix.package_target == 'windows' && github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: |
+          if (-not $env:CSC_LINK -or -not $env:CSC_KEY_PASSWORD) {
+            throw 'Signed Windows releases require WINDOWS_CSC_LINK and WINDOWS_CSC_KEY_PASSWORD.'
+          }
+
+      - name: Require Apple signing and notarization credentials
+        if: matrix.package_target == 'macos' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.MACOS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MACOS_CSC_KEY_PASSWORD }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+        run: |
+          for name in CSC_LINK CSC_KEY_PASSWORD APPLE_API_KEY APPLE_API_KEY_ID APPLE_API_ISSUER; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required release secret: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Build unsigned ${{ matrix.target }} preview package
+        if: github.ref_type != 'tag'
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: ${{ matrix.build_command }}
+
+      - name: Build signed ${{ matrix.target }} package
+        if: github.ref_type == 'tag'
+        working-directory: apps/desktop
+        env:
+          CSC_LINK: ${{ matrix.package_target == 'windows' && secrets.WINDOWS_CSC_LINK || matrix.package_target == 'macos' && secrets.MACOS_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.package_target == 'windows' && secrets.WINDOWS_CSC_KEY_PASSWORD || matrix.package_target == 'macos' && secrets.MACOS_CSC_KEY_PASSWORD || '' }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          CSC_IDENTITY_AUTO_DISCOVERY: true
+        run: ${{ matrix.build_command }}
+
+      - name: Collect stable and versioned artifact names
+        run: >-
+          python scripts/release/normalize_desktop_artifact.py
+          --target ${{ matrix.package_target }}
+          --arch ${{ matrix.architecture }}
+          --release-dir apps/desktop/release
+          --output-dir release-out
+
+      - name: Notarize and staple the DMG
+        if: matrix.package_target == 'macos' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          DMG_NAME: Quorum-${{ matrix.architecture }}.dmg
+        run: |
+          key_path="$RUNNER_TEMP/quorum-notary-${GITHUB_RUN_ID}.p8"
+          trap 'rm -f "$key_path"' EXIT
+          printf '%s' "$APPLE_API_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          xcrun notarytool submit "release-out/$DMG_NAME" \
+            --key "$key_path" \
+            --key-id "$APPLE_API_KEY_ID" \
+            --issuer "$APPLE_API_ISSUER" \
+            --wait
+          xcrun stapler staple --verbose "release-out/$DMG_NAME"
+          shopt -s nullglob
+          versioned=(release-out/Quorum-*-${{ matrix.architecture }}.dmg)
+          if [ "${#versioned[@]}" -ne 1 ]; then
+            echo "Expected exactly one versioned ${{ matrix.architecture }} DMG after normalization." >&2
+            exit 1
+          fi
+          cp -p "release-out/$DMG_NAME" "${versioned[0]}"
+
+      - name: Verify Authenticode signature
+        if: matrix.package_target == 'windows' && github.ref_type == 'tag'
+        shell: pwsh
+        run: |
+          $signature = Get-AuthenticodeSignature -LiteralPath 'release-out\Quorum-Setup.exe'
+          if ($signature.Status -ne 'Valid') {
+            throw "Quorum-Setup.exe signature is $($signature.Status): $($signature.StatusMessage)"
+          }
+
+      - name: Verify Apple signature and notarization ticket
+        if: matrix.package_target == 'macos' && github.ref_type == 'tag'
+        shell: bash
+        env:
+          DMG_NAME: Quorum-${{ matrix.architecture }}.dmg
+        run: |
+          for dmg in release-out/*.dmg; do
+            spctl --assess --type open --context context:primary-signature --verbose "$dmg"
+            xcrun stapler validate "$dmg"
+          done
+
+      - name: Verify Debian package metadata
+        if: matrix.package_target == 'linux'
+        run: dpkg-deb --info release-out/quorum.deb
+
+      - name: Upload platform packages
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: quorum-${{ github.ref_type == 'tag' && 'signed' || 'unsigned-preview' }}-${{ matrix.target }}-${{ github.sha }}
+          path: release-out/*
+          if-no-files-found: error
+          retention-days: 30
+
+  release-bundle:
+    name: Assemble read-only release bundle
+    needs: desktop-packages
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: '3.11'
+
+      - name: Download platform packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: quorum-*-${{ github.sha }}
+          path: release-bundle
+          merge-multiple: true
+
+      - name: Build and verify reproducible Quorum Companion
+        run: |
+          python quorum-companion/build.py --output "$RUNNER_TEMP/quorum-plugin-first.zip"
+          python quorum-companion/build.py --output release-bundle/quorum-plugin.zip
+          cmp "$RUNNER_TEMP/quorum-plugin-first.zip" release-bundle/quorum-plugin.zip
+
+      - name: Label unsigned preview bundle
+        if: github.ref_type != 'tag'
+        run: |
+          cat > release-bundle/UNSIGNED-PREVIEW.txt <<'EOF'
+          UNSIGNED QUORUM DEVELOPER PREVIEW
+
+          These packages are intentionally unsigned and are not a stable release.
+          Operating-system trust dialogs are expected. Do not redistribute them as
+          signed or production release artifacts.
+          EOF
+
+      - name: Generate SHA256SUMS and SPDX 2.3 SBOM
+        run: python scripts/release/finalize_artifacts.py --artifact-dir release-bundle
+
+      - name: Upload read-only assembled bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: quorum-${{ github.ref_type == 'tag' && 'release-staging' || 'unsigned-preview' }}-${{ github.sha }}
+          path: release-bundle/*
+          if-no-files-found: error
+          retention-days: 90
+
+  publish-stable:
+    name: Sign, attest, and publish stable release
+    if: github.ref_type == 'tag'
+    needs: release-bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment:
+      name: quorum-release
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download read-only assembled bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: quorum-release-staging-${{ github.sha }}
+          path: release-bundle
+
+      - name: Require and apply detached checksum signature
+        env:
+          RELEASE_GPG_PRIVATE_KEY: ${{ secrets.QUORUM_RELEASE_GPG_PRIVATE_KEY }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.QUORUM_RELEASE_GPG_PASSPHRASE }}
+        run: |
+          if [ -z "$RELEASE_GPG_PRIVATE_KEY" ] || [ -z "$RELEASE_GPG_PASSPHRASE" ]; then
+            echo 'Tagged releases require QUORUM_RELEASE_GPG_PRIVATE_KEY and QUORUM_RELEASE_GPG_PASSPHRASE.' >&2
+            exit 1
+          fi
+          printf '%s' "$RELEASE_GPG_PRIVATE_KEY" | gpg --batch --import
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "$RELEASE_GPG_PASSPHRASE" \
+            --armor --detach-sign --output release-bundle/SHA256SUMS.asc release-bundle/SHA256SUMS
+          gpg --verify release-bundle/SHA256SUMS.asc release-bundle/SHA256SUMS
+
+      - name: Attest stable release provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-path: release-bundle/*
+
+      - name: Upload signed stable bundle
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: quorum-signed-release-${{ github.sha }}
+          path: release-bundle/*
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Create or update signed draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" --verify-tag --draft --title "Quorum $TAG" \
+              --notes "Quorum Edition. Based on Hermes Agent by Nous Research."
+          fi
+          gh release upload "$TAG" release-bundle/* --clobber
+
+      - name: Promote the verified draft
+        if: inputs.publish_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release edit "$TAG" --draft=false --latest

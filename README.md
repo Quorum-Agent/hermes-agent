@@ -1,24 +1,65 @@
+# Quorum
+
 <p align="center">
-  <img src="assets/banner.png" alt="Hermes Agent" width="100%">
+  Privacy-first routing and inspection, built on Hermes Agent.
+</p>
+<p align="center">
+  <a href="https://github.com/Quorum-Agent/hermes-agent/releases"><img src="https://img.shields.io/badge/Downloads-Releases-6f42c1?style=for-the-badge" alt="Quorum releases"></a>
+  <a href="SECURITY.md"><img src="https://img.shields.io/badge/Security-Policy-green?style=for-the-badge" alt="Security policy"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-blue?style=for-the-badge" alt="MIT license"></a>
 </p>
 
-# Hermes Agent ☤
-<p align="center">
-  <a href="https://hermes-agent.nousresearch.com/">Hermes Agent</a> | <a href="https://hermes-agent.nousresearch.com/">Hermes Desktop</a>
-</p>
-<p align="center">
-  <a href="https://hermes-agent.nousresearch.com/docs/"><img src="https://img.shields.io/badge/Docs-hermes--agent.nousresearch.com-FFD700?style=for-the-badge" alt="Documentation"></a>
-  <a href="https://discord.gg/NousResearch"><img src="https://img.shields.io/badge/Discord-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Discord"></a>
-  <a href="https://github.com/NousResearch/hermes-agent/blob/main/LICENSE"><img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License: MIT"></a>
-  <a href="https://nousresearch.com"><img src="https://img.shields.io/badge/Built%20by-Nous%20Research-blueviolet?style=for-the-badge" alt="Built by Nous Research"></a>
-  <a href="README.zh-CN.md"><img src="https://img.shields.io/badge/Lang-中文-red?style=for-the-badge" alt="中文"></a>
-  <a href="README.ur-pk.md"><img src="https://img.shields.io/badge/Lang-اردو-green?style=for-the-badge" alt="اردو"></a>
-  <a href="README.es.md"><img src="https://img.shields.io/badge/Lang-Español-orange?style=for-the-badge" alt="Español"></a>
-</p>
+Quorum Edition is a separately distributed build of
+[Hermes Agent](https://github.com/NousResearch/hermes-agent) by Nous Research.
+It keeps Hermes' agent, tools, gateways, and learning loop while adding a
+host-owned routing boundary, an isolated `.quorum` state root, Quorum desktop
+identity, and a built-in policy inspector.
 
-**The self-improving AI agent built by [Nous Research](https://nousresearch.com).** It's the only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, searches its own past conversations, and builds a deepening model of who you are across sessions. Run it on a $5 VPS, a GPU cluster, or serverless infrastructure that costs nearly nothing when idle. It's not tied to your laptop — talk to it from Telegram while it works on a cloud VM.
+The mandatory guard runs after ordinary request middleware and immediately
+before governed model-provider and registered-tool dispatch. Private is the
+default; off-device inference and network-capable tools require both a policy
+that permits them and explicit cloud consent. Recognized sensitive content is
+kept on device/loopback. If configuration or classification is unavailable,
+governed dispatch fails closed.
+
+> Quorum is not a network firewall or process sandbox. Terminal commands,
+> code execution, trusted plugins, dependencies, and MCP server processes can
+> create their own connections outside governed dispatch. Read the
+> [security policy](SECURITY.md) before handling untrusted or regulated data.
+
+## What Quorum adds
+
+| Capability | Quorum Edition behavior |
+|---|---|
+| Policy enforcement | Host core, mandatory, fail closed; independent of plugin enablement |
+| Modes | Private, Balanced, Best quality, and Offline; unfinished cost control is rejected |
+| Cloud consent | Explicit and off by default |
+| Sensitive requests | Recognized categories restricted to device/loopback dispatch |
+| Inspection | Bounded process-memory decisions without prompt or tool-argument retention |
+| State | `~/.quorum` on Unix; `%LOCALAPPDATA%\quorum` on native Windows |
+| Distribution | Quorum desktop artifacts plus a limited stock-Hermes Companion ZIP |
+
+The Companion ZIP does **not** retrofit the mandatory host boundary into stock
+Hermes. It provides compatibility/status surfaces and says so explicitly.
+
+Hermes attribution and its upstream documentation are preserved throughout
+this fork. See [Quorum architecture](docs/quorum/ARCHITECTURE.md) and
+[release operations](docs/quorum/RELEASING.md) for the distribution-specific
+contract.
+
+## Hermes capabilities
+
+Hermes is a self-improving personal agent with a built-in learning loop. It
+creates and improves skills, searches prior conversations, supports scheduled
+automations and subagents, and runs across CLI, desktop, and messaging
+gateways.
 
 Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenRouter, OpenAI, your own endpoint, and [many others](https://hermes-agent.nousresearch.com/docs/integrations/providers). Switch with `hermes model` — no code changes, no lock-in.
+
+Because Quorum starts in Private mode, a cloud model will remain blocked after
+configuration until you deliberately choose Balanced or Best quality and turn
+on cloud consent in the Quorum inspector. Loopback model servers work in
+Private mode; Offline is stricter and permits only in-process/device inference.
 
 <table>
 <tr><td><b>A real terminal interface</b></td><td>Full TUI with multiline editing, slash-command autocomplete, conversation history, interrupt-and-redirect, and streaming tool output.</td></tr>
@@ -32,31 +73,44 @@ Use any model you want — [Nous Portal](https://portal.nousresearch.com), OpenR
 
 ---
 
-## Quick Install
+## Install Quorum
+
+Desktop installers and checksums are published on the
+[Quorum releases page](https://github.com/Quorum-Agent/hermes-agent/releases).
+Unsigned developer-preview artifacts are clearly marked as such; stable
+desktop releases must satisfy the signing requirements in
+[RELEASING.md](docs/quorum/RELEASING.md).
+
+For a source install from the current `main` branch:
 
 ### Linux, macOS, WSL2, Termux
 
 ```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.sh | bash
 ```
 
 ### Windows (native, PowerShell)
 
-> **Heads up:** Native Windows runs Hermes without WSL — CLI, gateway, TUI, and tools all work natively. If you'd rather use WSL2, the Linux/macOS one-liner above works there too. Found a bug? Please [file issues](https://github.com/NousResearch/hermes-agent/issues).
+> **Heads up:** Native Windows runs Quorum without WSL. If you prefer WSL2,
+> use the Linux one-liner above. Report Quorum Edition bugs in
+> [this repository](https://github.com/Quorum-Agent/hermes-agent/issues).
 
 Run this in PowerShell:
 
 ```powershell
-iex (irm https://hermes-agent.nousresearch.com/install.ps1)
+iex (irm https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.ps1)
 ```
 
-The installer handles everything: uv, Python 3.11, Node.js, ripgrep, ffmpeg, **and a portable Git Bash** (MinGit, unpacked to `%LOCALAPPDATA%\hermes\git` — no admin required, completely isolated from any system Git install). Hermes uses this bundled Git Bash to run shell commands.
+The installer handles uv, Python 3.11, Node.js, ripgrep, ffmpeg, and a portable
+Git Bash where required. Quorum runtime state is isolated under `.quorum`/
+`%LOCALAPPDATA%\quorum`; it does not reuse an existing Hermes home unless you
+explicitly set `HERMES_HOME`.
 
 If you already have Git installed, the installer detects it and uses that instead. Otherwise a ~45MB MinGit download is all you need — it won't touch or interfere with any system Git.
 
 > **Android / Termux:** The tested manual path is documented in the [Termux guide](https://hermes-agent.nousresearch.com/docs/getting-started/termux). On Termux, Hermes installs a curated `.[termux]` extra because the full `.[all]` extra currently pulls Android-incompatible voice dependencies.
 >
-> **Windows:** Native Windows is fully supported — the PowerShell one-liner above installs everything. If you'd rather use WSL2, the Linux command works there too. Native Windows install lives under `%LOCALAPPDATA%\hermes`; WSL2 installs under `~/.hermes` as on Linux.
+> **Windows:** Native Windows is fully supported — the PowerShell one-liner above installs everything. If you'd rather use WSL2, the Linux command works there too. Native Windows install lives under `%LOCALAPPDATA%\quorum`; WSL2 installs under `~/.quorum` as on Linux.
 
 After installation:
 
@@ -69,7 +123,7 @@ hermes              # start chatting!
 
 #### Windows Defender or antivirus flags `uv.exe` as malware
 
-If your antivirus (Bitdefender, Windows Defender, etc.) quarantines `uv.exe` from the Hermes `bin` folder (`%LOCALAPPDATA%\hermes\bin\uv.exe`), this is a **false positive**. The file is Astral's `uv` — the Rust Python package manager Hermes bundles to manage its Python environment. ML-based antivirus engines commonly flag unsigned Rust binaries that download and install packages.
+If your antivirus quarantines `uv.exe` from `%LOCALAPPDATA%\quorum\bin`, verify it against Astral's release before creating an exclusion. The file is the `uv` Python package manager Quorum uses for its managed environment; heuristic antivirus engines sometimes flag unsigned Rust downloaders.
 
 **To verify your copy is authentic:**
 
@@ -81,7 +135,7 @@ winget install --id GitHub.cli
 gh auth login
 
 # Run verification
-$uv = "$env:LOCALAPPDATA\hermes\bin\uv.exe"
+$uv = "$env:LOCALAPPDATA\quorum\bin\uv.exe"
 $ver = (& $uv --version).Split(' ')[1]
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $zip = "$env:TEMP\uv.zip"
@@ -93,10 +147,10 @@ Expand-Archive $zip "$env:TEMP\uv_x" -Force
 
 If attestation says "Verification succeeded" and the last line prints `True`, you're good.
 
-**To whitelist Hermes:**
-- **Windows Defender:** Run PowerShell as Admin → `Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\hermes\bin"`
+**To whitelist Quorum after verification:**
+- **Windows Defender:** Run PowerShell as Admin → `Add-MpPreference -ExclusionPath "$env:LOCALAPPDATA\quorum\bin"`
 - **Bitdefender:** Add an exception in the Bitdefender console (Protection > Antivirus > Settings > Manage Exceptions)
-- Whitelist the **folder**, not the file hash — Hermes updates `uv` and the hash changes every version
+- Whitelist the **folder**, not the file hash — Quorum updates `uv` and the hash changes every version
 
 For more context, see the upstream Astral reports: [astral-sh/uv#13553](https://github.com/astral-sh/uv/issues/13553), [astral-sh/uv#15011](https://github.com/astral-sh/uv/issues/15011), [astral-sh/uv#10079](https://github.com/astral-sh/uv/issues/10079).
 
@@ -117,7 +171,7 @@ hermes update       # Update to the latest version
 hermes doctor       # Diagnose any issues
 ```
 
-📖 **[Full documentation →](https://hermes-agent.nousresearch.com/docs/)**
+📖 **[Upstream Hermes documentation →](https://hermes-agent.nousresearch.com/docs/)**
 
 ---
 
@@ -162,7 +216,11 @@ For the full command lists, see the [CLI guide](https://hermes-agent.nousresearc
 
 ## Documentation
 
-All documentation lives at **[hermes-agent.nousresearch.com/docs](https://hermes-agent.nousresearch.com/docs/)**:
+Quorum-specific behavior is documented in [`docs/quorum`](docs/quorum).
+The complete inherited runtime reference remains in the
+**[upstream Hermes documentation](https://hermes-agent.nousresearch.com/docs/)**;
+where the two differ, Quorum's architecture, security, state-root, and release
+documents take precedence:
 
 | Section                                                                                             | What's Covered                                             |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
@@ -203,7 +261,7 @@ What gets imported:
 
 - **SOUL.md** — persona file
 - **Memories** — MEMORY.md and USER.md entries
-- **Skills** — user-created skills → `~/.hermes/skills/openclaw-imports/`
+- **Skills** — user-created skills → `~/.quorum/skills/openclaw-imports/`
 - **Command allowlist** — approval patterns
 - **Messaging settings** — platform configs, allowed users, working directory
 - **API keys** — allowlisted secrets (Telegram, OpenRouter, OpenAI, Anthropic, ElevenLabs)
@@ -216,16 +274,16 @@ See `hermes claw migrate --help` for all options, or use the `openclaw-migration
 
 ## Contributing
 
-We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.
+We welcome contributions to the Quorum fork. See the local [Contributing Guide](CONTRIBUTING.md) for development setup and code style, then open changes against `Quorum-Agent/hermes-agent`. The linked Hermes documentation below describes inherited runtime behavior and may differ where Quorum documents an override.
 
 Quick start for contributors — use the standard installer, then work from the
 full git checkout it creates at `$HERMES_HOME/hermes-agent` (usually
-`~/.hermes/hermes-agent`). This matches the layout used by `hermes update`, the
+`~/.quorum/hermes-agent`). This matches the layout used by `hermes update`, the
 managed venv, lazy dependencies, gateway, and docs tooling.
 
 ```bash
-curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
-cd "${HERMES_HOME:-$HOME/.hermes}/hermes-agent"
+curl -fsSL https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.sh | bash
+cd "${HERMES_HOME:-$HOME/.quorum}/hermes-agent"
 uv pip install -e ".[all,dev]"
 scripts/run_tests.sh
 ```
@@ -239,8 +297,8 @@ against its own checkout, destroying the running runtime mid-session.
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv venv ~/.hermes/venvs/hermes-dev --python 3.11
-source ~/.hermes/venvs/hermes-dev/bin/activate
+uv venv ~/.quorum/venvs/quorum-dev --python 3.11
+source ~/.quorum/venvs/quorum-dev/bin/activate
 uv pip install -e ".[all,dev]"
 scripts/run_tests.sh
 ```
@@ -251,7 +309,7 @@ scripts/run_tests.sh
 
 - 💬 [Discord](https://discord.gg/NousResearch)
 - 📚 [Skills Hub](https://agentskills.io)
-- 🐛 [Issues](https://github.com/NousResearch/hermes-agent/issues)
+- 🐛 [Quorum Edition issues](https://github.com/Quorum-Agent/hermes-agent/issues)
 - 🔌 [computer-use-linux](https://github.com/avifenesh/computer-use-linux) — Linux desktop-control MCP server for Hermes and other MCP hosts, with AT-SPI accessibility trees, Wayland/X11 input, screenshots, and compositor window targeting.
 - 🔌 [HermesClaw](https://github.com/AaronWong1999/hermesclaw) — Community WeChat bridge: Run Hermes Agent and OpenClaw on the same WeChat account.
 

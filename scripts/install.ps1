@@ -1,11 +1,11 @@
 # ============================================================================
-# Hermes Agent Installer for Windows
+# Quorum Edition Installer for Windows
 # ============================================================================
 # Installation script for Windows (PowerShell).
 # Uses uv for fast Python provisioning and package management.
 #
 # Usage:
-#   iex (irm https://hermes-agent.nousresearch.com/install.ps1)
+#   iex (irm https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.ps1)
 #
 # Or download and run with options:
 #   .\install.ps1 -NoVenv -SkipSetup
@@ -29,8 +29,12 @@ param(
     # existing tree pass -ForceCommit.
     [switch]$ForceCommit,
     [string]$Tag = "",
-    [string]$HermesHome = $(if ($env:HERMES_HOME) { $env:HERMES_HOME } else { "$env:LOCALAPPDATA\hermes" }),
-    [string]$InstallDir = $(if ($env:HERMES_HOME) { "$env:HERMES_HOME\hermes-agent" } else { "$env:LOCALAPPDATA\hermes\hermes-agent" }),
+    [string]$HermesHome = $(
+        if ($env:QUORUM_HOME) { $env:QUORUM_HOME }
+        elseif (($env:QUORUM_ALLOW_HERMES_HOME_MIGRATION -eq '1') -and $env:HERMES_HOME) { $env:HERMES_HOME }
+        else { "$env:LOCALAPPDATA\quorum" }
+    ),
+    [string]$InstallDir = "",
 
     # --- Stage protocol (additive; default invocation behaves as before) ----
     # See the "Stage protocol" section near the bottom of the file for the
@@ -49,21 +53,34 @@ param(
 
     # --- Desktop GUI build (opt-in) ---
     # When set, install.ps1 includes Stage-Desktop in the manifest and
-    # builds apps/desktop into a launchable Hermes.exe.
+    # builds apps/desktop into a launchable Quorum.exe.
     #
     # Why opt-in:
     #   * Hermes-Setup.exe (the signed Tauri bootstrap installer) passes
     #     -IncludeDesktop so a user who installed via the GUI ends up
     #     with a launchable desktop binary.
     #   * The Electron desktop's own bootstrap-runner.ts runs install.ps1
-    #     from inside an already-launched Hermes.exe; if THAT recursively
-    #     built apps/desktop it would try to overwrite the live Hermes.exe
+    #     from inside an already-launched Quorum.exe; if THAT recursively
+    #     built apps/desktop it would try to overwrite the live Quorum.exe
     #     on disk and fail. The recursive path omits the flag.
     #   * The canonical CLI one-liner (irm | iex) omits the flag too;
     #     terminal users don't need a desktop binary built for them, and
     #     `hermes desktop` already builds on demand.
     [switch]$IncludeDesktop
 )
+
+if (-not $InstallDir) { $InstallDir = Join-Path $HermesHome "hermes-agent" }
+$allowHermesMigration = $env:QUORUM_ALLOW_HERMES_HOME_MIGRATION -eq '1'
+if (-not $allowHermesMigration) {
+    $chosenHome = [IO.Path]::GetFullPath($HermesHome).TrimEnd('\', '/')
+    $stockHomes = @(
+        [IO.Path]::GetFullPath((Join-Path $HOME '.hermes')).TrimEnd('\', '/'),
+        [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'hermes')).TrimEnd('\', '/')
+    )
+    if ($stockHomes -contains $chosenHome) {
+        throw "Quorum refuses to share stock Hermes state at $HermesHome. Set QUORUM_ALLOW_HERMES_HOME_MIGRATION=1 only for an intentional migration."
+    }
+}
 
 $ErrorActionPreference = "Stop"
 
@@ -142,8 +159,8 @@ foreach ($tmpVar in @('TEMP', 'TMP')) {
 # Configuration
 # ============================================================================
 
-$RepoUrlSsh = "git@github.com:NousResearch/hermes-agent.git"
-$RepoUrlHttps = "https://github.com/NousResearch/hermes-agent.git"
+$RepoUrlSsh = "git@github.com:Quorum-Agent/hermes-agent.git"
+$RepoUrlHttps = "https://github.com/Quorum-Agent/hermes-agent.git"
 $PythonVersion = "3.11"
 # Minor versions the installer accepts when the requested $PythonVersion isn't
 # available, in preference order.  uv discovers both uv-managed and system
@@ -151,6 +168,9 @@ $PythonVersion = "3.11"
 # source of truth shared by Test-Python's fallback and Resolve-AvailablePythonVersion.
 $PythonFallbackVersions = @("3.12", "3.13", "3.10")
 $NodeVersion = "22"
+$NodeBootstrapVersion = "22.22.0"
+$UvBootstrapVersion = "0.9.28"
+$UvInstallerSha256 = "06cc77711fb658a073df5348b0ea298eb83c8c3ea11f4bc0ba16ba01ce049072"
 # The npm range the root package.json pins in `engines.npm`.  A constant rather
 # than a manifest read like the POSIX side does: Test-Node runs BEFORE the repo
 # is cloned, so there is usually no package.json on disk yet (and none at all
@@ -220,9 +240,9 @@ function Get-WindowsArch {
 function Write-Banner {
     Write-Host ""
     Write-Host "+---------------------------------------------------------+" -ForegroundColor Magenta
-    Write-Host "|             * Hermes Agent Installer                    |" -ForegroundColor Magenta
+    Write-Host "|             * Quorum Edition Installer                  |" -ForegroundColor Magenta
     Write-Host "+---------------------------------------------------------+" -ForegroundColor Magenta
-    Write-Host "|  An open source AI agent by Nous Research.              |" -ForegroundColor Magenta
+    Write-Host "|  Based on Hermes Agent by Nous Research.                |" -ForegroundColor Magenta
     Write-Host "+---------------------------------------------------------+" -ForegroundColor Magenta
     Write-Host ""
 }
@@ -478,11 +498,16 @@ function Install-Uv {
     try {
         $ErrorActionPreference = "Continue"
         $env:UV_INSTALL_DIR = Join-Path $HermesHome "bin"
-        # Spawn via the resolved host exe (see Get-PowerShellHostExe) rather
-        # than a bare `powershell`, which isn't guaranteed to be on PATH under
-        # PowerShell 7 / pwsh-only setups.
         $psHostExe = Get-PowerShellHostExe
-        & $psHostExe -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex" 2>&1 | Out-Null
+        $uvInstaller = Join-Path $env:TEMP "quorum-uv-installer-$UvBootstrapVersion.ps1"
+        $uvInstallerUrl = "https://github.com/astral-sh/uv/releases/download/$UvBootstrapVersion/uv-installer.ps1"
+        Invoke-WebRequest -Uri $uvInstallerUrl -OutFile $uvInstaller -UseBasicParsing
+        $actualUvHash = (Get-FileHash -LiteralPath $uvInstaller -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualUvHash -ne $UvInstallerSha256) {
+            throw "Pinned uv installer checksum verification failed"
+        }
+        & $psHostExe -NoProfile -ExecutionPolicy ByPass -File $uvInstaller 2>&1 | Out-Null
+        Remove-Item -LiteralPath $uvInstaller -Force -ErrorAction SilentlyContinue
         $ErrorActionPreference = $prevEAP
 
         if (Test-Path $managedUv) {
@@ -952,7 +977,7 @@ function Install-Git {
       1. Existing ``git`` on PATH -- use it as-is (the common fast path).
       2. Download **PortableGit** from the official git-for-windows GitHub
          release (self-extracting 7z.exe) and unpack it to
-         ``%LOCALAPPDATA%\hermes\git`` -- never touches system Git, never
+         ``%LOCALAPPDATA%\quorum\git`` -- never touches system Git, never
          requires admin, works even on locked-down machines and machines
          with a broken system Git install.
 
@@ -966,7 +991,7 @@ function Install-Git {
     We deliberately skip winget because it fails badly when the system Git
     install is in a half-installed state (partially registered, or uninstall-
     blocked).  Owning the Hermes copy of Git ourselves is predictable and
-    recoverable: if it ever breaks, ``Remove-Item %LOCALAPPDATA%\hermes\git``
+    recoverable: if it ever breaks, ``Remove-Item %LOCALAPPDATA%\quorum\git``
     and re-running this installer fully recovers.
 
     After install we locate ``bash.exe`` and persist the path in
@@ -1032,16 +1057,19 @@ function Install-Git {
         $gitVer    = "2.54.0"
         $gitVerTag = "$gitVer.windows.1"
 
-        if ($arch -eq "32-bit-mingit") {
+        if ($assetTag -eq "32-bit-mingit") {
             Write-Warn "32-bit Windows detected -- PortableGit is 64-bit only.  Installing MinGit 32-bit as a last resort; bash-dependent Hermes features (terminal tool, agent-browser) will not work on this machine."
             $assetName    = "MinGit-$gitVer-32-bit.zip"
             $downloadIsZip = $true
-        } elseif ($arch -eq "arm64") {
+            $expectedGitSha256 = "52fc36c9b22611f0a6a7fabdc68c763b914400e3af0e35ad822468dc64cb7981"
+        } elseif ($assetTag -eq "arm64") {
             $assetName    = "PortableGit-$gitVer-arm64.7z.exe"
             $downloadIsZip = $false
+            $expectedGitSha256 = "f8e92cd3359fcbb96998cfd606a536ccc6dbfb23c04e12b29042f9ba45b6b0c7"
         } else {
             $assetName    = "PortableGit-$gitVer-64-bit.7z.exe"
             $downloadIsZip = $false
+            $expectedGitSha256 = "bea006a6cc69673f27b1647e84ab3a68e912fbc175ab6320c5987e012897f311"
         }
 
         $downloadUrl = "https://github.com/git-for-windows/git/releases/download/$gitTag/$assetName"
@@ -1051,6 +1079,16 @@ function Install-Git {
 
         Write-Info "Downloading $assetName (Git for Windows $gitVerTag)..."
         Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpFile -UseBasicParsing
+        $actualGitSha256 = (Get-FileHash -LiteralPath $tmpFile -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualGitSha256 -ne $expectedGitSha256) {
+            throw "Git for Windows archive checksum verification failed"
+        }
+        if (-not $downloadIsZip) {
+            $signature = Get-AuthenticodeSignature -LiteralPath $tmpFile
+            if ($signature.Status -ne 'Valid' -or $signature.SignerCertificate.Subject -notmatch '^CN=Johannes Schindelin(?:,|$)') {
+                throw "PortableGit Authenticode publisher verification failed"
+            }
+        }
 
         if (Test-Path $gitDir) {
             Write-Info "Removing previous Git install at $gitDir ..."
@@ -1249,9 +1287,8 @@ function Test-Node {
     Write-Info "(no admin rights required; isolated from any system Node install)"
     try {
         $arch = Get-WindowsArch
-        $indexUrl = "https://nodejs.org/dist/latest-v${NodeVersion}.x/"
-        $indexPage = Invoke-WebRequest -Uri $indexUrl -UseBasicParsing
-        $zipName = ($indexPage.Content | Select-String -Pattern "node-v${NodeVersion}\.\d+\.\d+-win-${arch}\.zip" -AllMatches).Matches[0].Value
+        $indexUrl = "https://nodejs.org/dist/v${NodeBootstrapVersion}/"
+        $zipName = "node-v${NodeBootstrapVersion}-win-${arch}.zip"
 
         if ($zipName) {
             $downloadUrl = "${indexUrl}${zipName}"
@@ -1259,6 +1296,14 @@ function Test-Node {
             $tmpDir = "$env:TEMP\hermes-node-extract"
 
             Invoke-WebRequest -Uri $downloadUrl -OutFile $tmpZip -UseBasicParsing
+            $checksumManifest = Invoke-WebRequest -Uri "${indexUrl}SHASUMS256.txt" -UseBasicParsing
+            $escapedZipName = [Regex]::Escape($zipName)
+            $expectedMatch = [Regex]::Match($checksumManifest.Content, "(?m)^([0-9a-fA-F]{64})\s+$escapedZipName$")
+            if (-not $expectedMatch.Success) { throw "Official Node.js checksum manifest did not contain $zipName" }
+            $actualNodeHash = (Get-FileHash -LiteralPath $tmpZip -Algorithm SHA256).Hash
+            if ($actualNodeHash -ne $expectedMatch.Groups[1].Value) {
+                throw "Node.js archive checksum verification failed"
+            }
             if (Test-Path $tmpDir) { Remove-Item -Recurse -Force $tmpDir }
             Expand-Archive -Path $tmpZip -DestinationPath $tmpDir -Force
 
@@ -1545,6 +1590,21 @@ function Install-SystemPackages {
 # Installation
 # ============================================================================
 
+function Assert-QuorumRepositoryOrigin {
+    param([Parameter(Mandatory=$true)][string]$Repository)
+    $origin = (& git -C $Repository remote get-url origin 2>$null | Select-Object -First 1)
+    $canonical = if ($origin) { $origin.ToString().Trim().ToLowerInvariant() } else { "" }
+    $allowed = @(
+        "git@github.com:quorum-agent/hermes-agent.git",
+        "git@github.com:quorum-agent/hermes-agent",
+        "https://github.com/quorum-agent/hermes-agent.git",
+        "https://github.com/quorum-agent/hermes-agent"
+    )
+    if ($canonical -notin $allowed) {
+        throw "Refusing to update $Repository because origin is not Quorum-Agent/hermes-agent (found: $(if ($origin) { $origin } else { '<missing>' }))."
+    }
+}
+
 function Install-Repository {
     Write-Info "Installing to $InstallDir..."
 
@@ -1591,6 +1651,7 @@ function Install-Repository {
         }
 
         if ($repoValid) {
+            Assert-QuorumRepositoryOrigin -Repository $InstallDir
             Write-Info "Existing installation found, updating..."
             Push-Location $InstallDir
             # Wrap the entire fetch+checkout block in EAP=Continue so git's
@@ -1831,13 +1892,13 @@ function Install-Repository {
                 # for.  GitHub supports archive URLs for commits, tags, and
                 # branches; we honour Commit > Tag > Branch.
                 if ($Commit) {
-                    $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/$Commit.zip"
+                    $zipUrl = "https://github.com/Quorum-Agent/hermes-agent/archive/$Commit.zip"
                     $zipLabel = $Commit
                 } elseif ($Tag) {
-                    $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/refs/tags/$Tag.zip"
+                    $zipUrl = "https://github.com/Quorum-Agent/hermes-agent/archive/refs/tags/$Tag.zip"
                     $zipLabel = $Tag
                 } else {
-                    $zipUrl = "https://github.com/NousResearch/hermes-agent/archive/refs/heads/$Branch.zip"
+                    $zipUrl = "https://github.com/Quorum-Agent/hermes-agent/archive/refs/heads/$Branch.zip"
                     $zipLabel = $Branch
                 }
                 $zipPath = "$env:TEMP\hermes-agent-$zipLabel.zip"
@@ -1922,6 +1983,7 @@ function Install-Repository {
     }
 
     # Set per-repo config (harmless if it fails)
+    Assert-QuorumRepositoryOrigin -Repository $InstallDir
     Push-Location $InstallDir
     git -c windows.appendAtomically=false config windows.appendAtomically false 2>$null
     # Pin autocrlf=false on the managed clone so git never renormalizes the
@@ -1962,6 +2024,19 @@ function Install-Repository {
     }
 
     Write-Success "Repository ready"
+}
+
+function Assert-QuorumRuntimeIdentity {
+    $launcher = Join-Path $InstallDir "venv\Scripts\hermes.exe"
+    if (-not (Test-Path -LiteralPath $launcher -PathType Leaf)) {
+        $command = Get-Command hermes.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $command) { throw "Quorum runtime launcher was not installed" }
+        $launcher = $command.Source
+    }
+    $version = (& $launcher --version 2>&1 | Select-Object -First 1).ToString().Trim()
+    if (-not $version.StartsWith("Quorum v", [StringComparison]::Ordinal)) {
+        throw "Installed runtime identity verification failed: $(if ($version) { $version } else { 'no version response' })"
+    }
 }
 
 function Install-Venv {
@@ -2440,8 +2515,8 @@ function Set-PathVariable {
     }
     
     # Set HERMES_HOME so the Python code finds config/data in the right place.
-    # Only needed on Windows where we install to %LOCALAPPDATA%\hermes instead
-    # of the Unix default ~/.hermes
+    # Only needed on Windows where we install to %LOCALAPPDATA%\quorum instead
+    # of the Unix default ~/.quorum
     $currentHermesHome = [Environment]::GetEnvironmentVariable("HERMES_HOME", "User")
     if (-not $currentHermesHome -or $currentHermesHome -ne $HermesHome) {
         [Environment]::SetEnvironmentVariable("HERMES_HOME", $HermesHome, "User")
@@ -2456,7 +2531,7 @@ function Set-PathVariable {
 }
 
 function Write-BootstrapMarker {
-    # Writes $InstallDir\.hermes-bootstrap-complete which tells the Hermes
+    # Writes $InstallDir\.hermes-bootstrap-complete which tells the desktop
     # desktop app (apps/desktop/electron/main.ts) "install.ps1 ran
     # successfully -- DON'T trigger the legacy first-launch bootstrap
     # runner."
@@ -2535,7 +2610,7 @@ function Write-BootstrapMarker {
 function Copy-ConfigTemplates {
     Write-Info "Setting up configuration files..."
     
-    # Create the HERMES_HOME directory structure ($HermesHome, default %LOCALAPPDATA%\hermes)
+    # Create the HERMES_HOME directory structure ($HermesHome, default %LOCALAPPDATA%\quorum)
     New-Item -ItemType Directory -Force -Path "$HermesHome\cron" | Out-Null
     New-Item -ItemType Directory -Force -Path "$HermesHome\sessions" | Out-Null
     New-Item -ItemType Directory -Force -Path "$HermesHome\logs" | Out-Null
@@ -2589,7 +2664,7 @@ function Copy-ConfigTemplates {
         # upgrades the old comment-only scaffold to this text on next run, so
         # drift is self-healing, but keep them in sync to avoid first-run churn.
         $soulContent = @"
-You are Hermes Agent, an intelligent AI assistant created by Nous Research. You are helpful, knowledgeable, and direct. You assist users with a wide range of tasks including answering questions, writing and editing code, analyzing information, creative work, and executing actions via your tools. You communicate clearly, admit uncertainty when appropriate, and prioritize being genuinely useful over being verbose unless otherwise directed below. Be targeted and efficient in your exploration and investigations.
+You are Quorum, an intelligent AI assistant based on Hermes Agent by Nous Research. You are helpful, knowledgeable, and direct. You assist users with a wide range of tasks including answering questions, writing and editing code, analyzing information, creative work, and executing actions via your tools. You communicate clearly, admit uncertainty when appropriate, and prioritize being genuinely useful over being verbose unless otherwise directed below. Be targeted and efficient in your exploration and investigations.
 "@
         $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
         [System.IO.File]::WriteAllText($soulPath, $soulContent, $utf8NoBom)
@@ -3010,7 +3085,7 @@ function Install-DesktopVoiceDeps {
 }
 
 function Install-Desktop {
-    # Build apps/desktop into a launchable Hermes.exe. Only called from
+    # Build apps/desktop into a launchable Quorum.exe. Only called from
     # Stage-Desktop, which is itself only included in the manifest when
     # -IncludeDesktop was passed to install.ps1.
     #
@@ -3023,7 +3098,7 @@ function Install-Desktop {
     # produces the unpacked binary at apps/desktop/release/<os>-unpacked/.
     #
     # The Tauri bootstrap installer's launch_hermes_desktop command
-    # resolves apps/desktop/release/win-unpacked/Hermes.exe directly,
+    # resolves apps/desktop/release/win-unpacked/Quorum.exe directly,
     # so an "unpacked" build (electron-builder --dir) is enough -- we
     # don't need to produce an NSIS/MSI artifact here.
 
@@ -3124,7 +3199,7 @@ function Install-Desktop {
     # 2. Build apps/desktop. `npm run pack` runs:
     #      assert-root-install + write-build-stamp + stage-native-deps +
     #      tsc -b + vite build + electron-builder --dir
-    # The --dir mode produces an unpacked Hermes.exe in
+    # The --dir mode produces an unpacked Quorum.exe in
     # apps/desktop/release/win-unpacked/ without bundling NSIS/MSI;
     # we don't need a distributable installer artifact, just a
     # launchable binary the Tauri installer can spawn.
@@ -3135,7 +3210,7 @@ function Install-Desktop {
     # invokes signtool and therefore never fetches/extracts winCodeSign
     # (whose macOS symlinks crash 7-Zip on non-admin Windows -- a dead end we
     # are NOT trying to work around). The Hermes icon + product name are
-    # stamped onto Hermes.exe by our own rcedit step (Set-DesktopExeIdentity)
+    # stamped onto Quorum.exe by our own rcedit step (Set-DesktopExeIdentity)
     # AFTER this build, completely decoupled from electron-builder signing.
     #
     # WIN_CSC_LINK and WIN_CSC_KEY_PASSWORD explicitly cleared as
@@ -3251,8 +3326,8 @@ function Install-Desktop {
     # 3. Sanity-check the produced binary. Probe both arches so this works
     # on x64 and arm64 build machines.
     $exeCandidates = @(
-        "$desktopDir\release\win-unpacked\Hermes.exe",
-        "$desktopDir\release\win-arm64-unpacked\Hermes.exe"
+        "$desktopDir\release\win-unpacked\Quorum.exe",
+        "$desktopDir\release\win-arm64-unpacked\Quorum.exe"
     )
     $found = $false
     $desktopExe = $null
@@ -3265,10 +3340,10 @@ function Install-Desktop {
         }
     }
     if (-not $found) {
-        throw "Desktop build completed but no Hermes.exe was found under $desktopDir\release\*-unpacked\"
+        throw "Desktop build completed but no Quorum.exe was found under $desktopDir\release\*-unpacked\"
     }
 
-    # 3b. The Hermes icon + identity are stamped onto Hermes.exe by the
+    # 3b. The Quorum icon + identity are stamped onto Quorum.exe by the
     #     electron-builder `afterPack` hook (apps/desktop/scripts/after-pack.mjs)
     #     during `npm run pack` above -- for every build, so the installer's
     #     --update rebuild stays branded too. No separate stamp step needed here.
@@ -3294,7 +3369,7 @@ function Install-Desktop {
     }
 
     # 4. Create Start Menu + Desktop shortcuts pointing DIRECTLY at the packed
-    #    Hermes.exe. We deliberately do NOT point them at `hermes desktop`: that
+    #    Quorum.exe. We deliberately do NOT point them at `hermes desktop`: that
     #    command rebuilds (npm install + electron-builder) on every launch,
     #    which would cost minutes each time. The packed exe is the consumer --
     #    launching it directly is instant, and updates flow through the
@@ -3325,8 +3400,8 @@ function New-DesktopShortcuts {
         }
 
         $targets = @(
-            (Join-Path ([Environment]::GetFolderPath('Programs')) 'Hermes.lnk'),
-            (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Hermes.lnk')
+            (Join-Path ([Environment]::GetFolderPath('Programs')) 'Quorum.lnk'),
+            (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Quorum.lnk')
         )
 
         foreach ($lnkPath in $targets) {
@@ -3339,7 +3414,7 @@ function New-DesktopShortcuts {
                 $sc.TargetPath = $TargetExe
                 $sc.WorkingDirectory = $workDir
                 $sc.IconLocation = $iconLocation
-                $sc.Description = 'Hermes Agent'
+                $sc.Description = 'Quorum Edition (based on Hermes Agent)'
                 $sc.Save()
                 Write-Success "Shortcut created: $lnkPath"
             } catch {
@@ -3365,7 +3440,7 @@ function New-DesktopShortcuts {
 
 function Install-PlatformSdks {
     # Ensure messaging-platform SDKs matching tokens the user added to
-    # ~/.hermes/.env are importable.  Two problems this solves:
+    # the Quorum home .env is importable. Two problems this solves:
     #
     # 1. The tiered `uv pip install` cascade above can fall through to a
     #    lower tier when the first fails (common when RL git deps choke),
@@ -3716,7 +3791,7 @@ $InstallStages = @(
     @{ Name = "git";              Title = "Installing Git";                       Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Git" }
     @{ Name = "node";             Title = "Detecting Node.js";                    Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-Node" }
     @{ Name = "system-packages";  Title = "Installing ripgrep and ffmpeg";        Category = "prereqs";      NeedsUserInput = $false; Worker = "Stage-SystemPackages" }
-    @{ Name = "repository";       Title = "Cloning Hermes repository";            Category = "install";      NeedsUserInput = $false; Worker = "Stage-Repository" }
+    @{ Name = "repository";       Title = "Cloning Quorum Edition repository";     Category = "install";      NeedsUserInput = $false; Worker = "Stage-Repository" }
     @{ Name = "venv";             Title = "Creating Python virtual environment";  Category = "install";      NeedsUserInput = $false; Worker = "Stage-Venv" }
     @{ Name = "dependencies";     Title = "Installing Python dependencies";       Category = "install";      NeedsUserInput = $false; Worker = "Stage-Dependencies" }
     @{ Name = "node-deps";        Title = "Installing Node.js dependencies";      Category = "install";      NeedsUserInput = $false; Worker = "Stage-NodeDeps" }
@@ -3777,7 +3852,7 @@ function Stage-Desktop          { Install-DesktopVoiceDeps; Install-Desktop }
 function Stage-Path             { Set-PathVariable }
 function Stage-ConfigTemplates  { Copy-ConfigTemplates }
 function Stage-PlatformSdks     { Resolve-UvCmd; Install-PlatformSdks }
-function Stage-BootstrapMarker  { Write-BootstrapMarker }
+function Stage-BootstrapMarker  { Assert-QuorumRuntimeIdentity; Write-BootstrapMarker }
 function Stage-Configure        { Invoke-SetupWizard }
 function Stage-Gateway          { Start-GatewayIfConfigured }
 
@@ -4020,7 +4095,7 @@ try {
     Write-Err "Installation failed: $_"
     Write-Host ""
     Write-Info "If the error is unclear, try downloading and running the script directly:"
-    Write-Host "  Invoke-WebRequest -Uri 'https://hermes-agent.nousresearch.com/install.ps1' -OutFile install.ps1" -ForegroundColor Yellow
+    Write-Host "  Invoke-WebRequest -Uri 'https://raw.githubusercontent.com/Quorum-Agent/hermes-agent/main/scripts/install.ps1' -OutFile install.ps1" -ForegroundColor Yellow
     Write-Host "  .\install.ps1" -ForegroundColor Yellow
     Write-Host ""
 }

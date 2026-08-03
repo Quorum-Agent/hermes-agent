@@ -1,7 +1,7 @@
 {
-  "name": "hermes-agent",
+  "name": "quorum-agent",
   "version": "1.0.0",
-  "description": "An AI agent with advanced tool-calling capabilities, featuring a flexible toolsets system for organizing and managing tools.",
+  "description": "Quorum Edition, based on Hermes Agent by Nous Research.",
   "private": true,
   "workspaces": [
     "apps/*",
@@ -27,13 +27,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/NousResearch/Hermes-Agent.git"
+    "url": "git+https://github.com/Quorum-Agent/hermes-agent.git"
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/NousResearch/Hermes-Agent/issues"
+    "url": "https://github.com/Quorum-Agent/hermes-agent/issues"
   },
-  "homepage": "https://github.com/NousResearch/Hermes-Agent#readme",
+  "homepage": "https://github.com/Quorum-Agent/hermes-agent#readme",
   "dependencies": {
     "@streamdown/math": "1.0.2",
     "agent-browser": "0.26.0"

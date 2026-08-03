@@ -1497,6 +1497,23 @@ def probe_bedrock_context_length(model_id: str, region: str) -> Optional[int]:
     (missing credentials, network error, or no parseable limit) so the caller
     can fall back to the static table.
     """
+    # Quorum Edition never sends a synthetic million-token request merely to
+    # discover metadata.  Besides being surprising network activity, the raw
+    # Converse call is outside a user turn and cannot provide a meaningful
+    # consent context.  The maintained static table is conservative and keeps
+    # Private/Offline semantics honest.  The upstream-compatible branch is
+    # retained for code reuse outside this distribution.
+    try:
+        from product_identity import IS_QUORUM_EDITION
+    except ImportError:
+        IS_QUORUM_EDITION = False
+    if IS_QUORUM_EDITION:
+        logger.debug(
+            "Bedrock context probe disabled by Quorum Edition for %s; using static metadata",
+            model_id,
+        )
+        return None
+
     try:
         from agent.model_metadata import parse_context_limit_from_error
     except ImportError:  # pragma: no cover — same package
@@ -1552,11 +1569,13 @@ def get_bedrock_context_length(model_id: str, region: str = "", probe: bool = Tr
     """Resolve the context window for a Bedrock model.
 
     Resolution order:
-      1. Live probe against Bedrock (authoritative; cached by the caller).
+      1. Live probe against Bedrock (non-Quorum distributions only).
       2. Static fallback table (longest-substring match).
       3. Conservative default.
 
-    The static table is intentionally a *fallback*, not the primary source:
+    In Quorum Edition the static table is always used because metadata lookup
+    must not create an unconsented provider call. In other distributions the
+    static table is intentionally a *fallback*, not the primary source:
     AWS ships new model versions (opus-4-7, opus-4-8, ...) faster than the
     table can track, and a stale entry silently caps the window (e.g. a
     1M-token Opus pinned to 200K via an ``opus-4`` substring match).  The

@@ -656,7 +656,23 @@ Write only the summary, starting with "[CONTEXT SUMMARY]:" prefix."""
                     }
                     if summary_temperature is not None:
                         _create_kwargs["temperature"] = summary_temperature
-                    response = self.client.chat.completions.create(**_create_kwargs)
+                    from agent import relay_llm
+
+                    response = relay_llm.execute_current(
+                        _create_kwargs,
+                        lambda request: self.client.chat.completions.create(**request),
+                        name="custom",
+                        model_name=str(_create_kwargs["model"]),
+                        metadata={
+                            "api_mode": "chat_completions",
+                            "base_url": str(
+                                getattr(self.client, "base_url", "")
+                                or self.config.base_url
+                                or ""
+                            ),
+                            "call_role": "trajectory_compression",
+                        },
+                    )
                 
                 summary = self._coerce_summary_content(response.choices[0].message.content)
                 return self._ensure_summary_prefix(summary)
@@ -725,7 +741,26 @@ Write only the summary, starting with "[CONTEXT SUMMARY]:" prefix."""
                     }
                     if summary_temperature is not None:
                         _create_kwargs["temperature"] = summary_temperature
-                    response = await self._get_async_client().chat.completions.create(**_create_kwargs)
+                    from agent import relay_llm
+
+                    async_client = self._get_async_client()
+                    response = await relay_llm.execute_current_async(
+                        _create_kwargs,
+                        lambda request: async_client.chat.completions.create(
+                            **request
+                        ),
+                        name="custom",
+                        model_name=str(_create_kwargs["model"]),
+                        metadata={
+                            "api_mode": "chat_completions",
+                            "base_url": str(
+                                getattr(async_client, "base_url", "")
+                                or self.config.base_url
+                                or ""
+                            ),
+                            "call_role": "trajectory_compression",
+                        },
+                    )
                 
                 summary = self._coerce_summary_content(response.choices[0].message.content)
                 return self._ensure_summary_prefix(summary)

@@ -742,14 +742,16 @@ def _find_bash() -> str:
     #
     # Layouts (both checked so upgrades between MinGit and PortableGit
     # installs work transparently):
-    #   PortableGit: %LOCALAPPDATA%\hermes\git\bin\bash.exe   (primary)
-    #   MinGit:      %LOCALAPPDATA%\hermes\git\usr\bin\bash.exe (legacy/32-bit fallback)
+    #   PortableGit: <active Quorum home>\git\bin\bash.exe   (primary)
+    #   MinGit:      <active Quorum home>\git\usr\bin\bash.exe (legacy fallback)
+    from hermes_constants import get_hermes_home
+
     _local_appdata = os.environ.get("LOCALAPPDATA", "")
-    _hermes_portable_git = os.path.join(_local_appdata, "hermes", "git") if _local_appdata else ""
-    if _hermes_portable_git:
+    _managed_portable_git = os.path.join(str(get_hermes_home()), "git")
+    if _managed_portable_git:
         for candidate in (
-            os.path.join(_hermes_portable_git, "bin", "bash.exe"),        # PortableGit (primary)
-            os.path.join(_hermes_portable_git, "usr", "bin", "bash.exe"), # MinGit fallback
+            os.path.join(_managed_portable_git, "bin", "bash.exe"),
+            os.path.join(_managed_portable_git, "usr", "bin", "bash.exe"),
         ):
             if os.path.isfile(candidate) and candidate not in candidates:
                 candidates.append(candidate)
@@ -773,7 +775,7 @@ def _find_bash() -> str:
     # Prefer the first candidate that can actually start.  A stale
     # HERMES_GIT_BASH_PATH pointing at a broken Git-for-Windows install
     # (``Directory \\drivers\\etc does not exist``) must not win over a
-    # healthy portable Git under %LOCALAPPDATA%\\hermes\\git.
+    # healthy portable Git under the active Quorum home.
     for candidate in candidates:
         if _bash_starts(candidate):
             if candidate != custom and custom and os.path.isfile(custom):
@@ -801,7 +803,7 @@ def _find_bash() -> str:
         return candidates[0]
 
     raise RuntimeError(
-        "Git Bash not found. Hermes Agent requires Git for Windows on Windows.\n"
+        "Git Bash not found. Quorum requires Git for Windows on Windows.\n"
         "Install it from: https://git-scm.com/download/win\n"
         "Or set HERMES_GIT_BASH_PATH to your bash.exe location."
     )

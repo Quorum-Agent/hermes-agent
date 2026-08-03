@@ -17,6 +17,18 @@ def _load_package_data():
     return tool["setuptools"]["package-data"]
 
 
+def _load_py_modules():
+    pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    with pyproject_path.open("rb") as handle:
+        tool = tomllib.load(handle)["tool"]
+    return tool["setuptools"]["py-modules"]
+
+
+def test_quorum_product_identity_is_shipped_in_sealed_python_installs():
+    """Runtime imports must also work outside a source/editable checkout."""
+    assert "product_identity" in _load_py_modules()
+
+
 def test_matrix_extra_not_in_all():
     """The [matrix] extra pulls `mautrix[encryption]` -> `python-olm`,
     which has Linux-only wheels and no native build path on Windows or

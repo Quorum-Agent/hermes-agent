@@ -59,6 +59,17 @@ def _effective_temperature_for_model(
     return result
 
 
+def _provider_for_endpoint(base_url: str, fallback: str) -> str:
+    """Return the most specific provider identity available for dispatch."""
+    try:
+        from agent.model_metadata import _infer_provider_from_url
+
+        inferred = _infer_provider_from_url(base_url)
+    except Exception:
+        inferred = None
+    return str(inferred or fallback)
+
+
 
 
 # ============================================================================
@@ -209,17 +220,29 @@ class MiniSWERunner:
                               os.getenv("OPENAI_API_KEY", ""))),
             }
             self.client = OpenAI(**client_kwargs)
+            self.provider = _provider_for_endpoint(
+                str(client_kwargs["base_url"]),
+                "custom" if base_url else "openrouter",
+            )
         else:
             from agent.auxiliary_client import resolve_provider_client
             self.client, _ = resolve_provider_client("openrouter", model=model)
+            self.provider = "openrouter"
             if self.client is None:
                 # Fallback: try auto-detection
                 self.client, _ = resolve_provider_client("auto", model=model)
+                self.provider = "auto"
             if self.client is None:
                 from openai import OpenAI
                 self.client = OpenAI(
                     base_url="https://openrouter.ai/api/v1",
                     api_key=os.getenv("OPENROUTER_API_KEY", ""))
+                self.provider = "openrouter"
+
+        self.provider = _provider_for_endpoint(
+            str(getattr(self.client, "base_url", "") or ""),
+            self.provider,
+        )
         
         # Environment will be created per-task
         self.env = None
@@ -465,7 +488,21 @@ Complete the user's task step by step."""
                     if fixed_temperature is not None:
                         api_kwargs["temperature"] = fixed_temperature
 
-                    response = self.client.chat.completions.create(**api_kwargs)
+                    from agent import relay_llm
+
+                    response = relay_llm.execute_current(
+                        api_kwargs,
+                        lambda request: self.client.chat.completions.create(**request),
+                        name=self.provider,
+                        model_name=str(api_kwargs["model"]),
+                        metadata={
+                            "api_mode": "chat_completions",
+                            "base_url": str(
+                                getattr(self.client, "base_url", "") or ""
+                            ),
+                            "call_role": "mini_swe",
+                        },
+                    )
                 except Exception as e:
                     self.logger.error("API call failed: %s", e)
                     break

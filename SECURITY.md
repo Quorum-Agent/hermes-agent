@@ -1,14 +1,14 @@
-# Hermes Agent Security Policy
+# Quorum Edition Security Policy
 
-This document describes Hermes Agent's trust model, names the one
-security boundary the project treats as load-bearing, and defines the
-scope for vulnerability reports.
+This document describes Quorum Edition's trust model, its load-bearing
+boundaries, and the scope for vulnerability reports. Quorum Edition is based
+on Hermes Agent by Nous Research; this policy applies to the Quorum-Agent
+distribution and its Quorum-specific enforcement.
 
 ## 1. Reporting a Vulnerability
 
-Report privately via [GitHub Security Advisories](https://github.com/NousResearch/hermes-agent/security/advisories/new)
-or **security@nousresearch.com**. Do not open public issues for
-security vulnerabilities. **Hermes Agent does not operate a bug
+Report privately via [GitHub Security Advisories](https://github.com/Quorum-Agent/hermes-agent/security/advisories/new).
+Do not open public issues for security vulnerabilities. **Quorum Agent does not operate a bug
 bounty program.**
 
 A useful report includes:
@@ -31,7 +31,7 @@ through the private security channel.
 
 ## 2. Trust Model
 
-Hermes Agent is a single-tenant personal agent. Its posture is
+Quorum Edition is a single-tenant personal agent. Its posture is
 layered, and the layers are not equally load-bearing. Reporters and
 operators should reason about them in the same terms.
 
@@ -54,10 +54,14 @@ operators should reason about them in the same terms.
   or code about how a consuming layer (adapter, UI, file writer,
   shell) should treat agent output — e.g. "the dashboard renders
   agent output as inert HTML."
+- **Governed dispatch.** A model-provider call or registered tool invocation
+  that crosses Quorum's host-owned dispatch checks. This does not include
+  arbitrary sockets opened by trusted Python code, plugins, MCP server
+  processes, or commands executed through terminal/code tools.
 
 ### 2.2 The Boundary: OS-Level Isolation
 
-**The only security boundary against an adversarial LLM is the
+**The only containment boundary against an adversarial LLM is the
 operating system.** Nothing inside the agent process constitutes
 containment — not the approval gate, not output redaction, not any
 pattern scanner, not any tool allowlist. Any in-process component
@@ -117,6 +121,26 @@ Operators running the default local backend with untrusted input
 surfaces, or running a terminal-backend sandbox and expecting it to
 contain code paths that don't go through the shell, are operating
 outside the supported security posture.
+
+#### Quorum governed-dispatch boundary
+
+Quorum Edition adds a narrower, fail-closed boundary against unintended
+off-device dispatch. The host core evaluates the final effective request after
+ordinary middleware and immediately before each governed model or tool call.
+The presentation plugin can be disabled without disabling this boundary.
+
+This boundary enforces policy ceilings and explicit off-device consent for
+the provider and registered-tool routes integrated with it. It also prevents
+recognized sensitive content from being handed to an off-device provider or
+network-capable registered tool. If configuration or the classifier cannot be
+loaded, governed dispatch is blocked.
+
+It is not process containment, a data-loss-prevention appliance, or a network
+firewall. A trusted plugin, MCP server process, Python dependency, terminal
+command, or code-execution payload can open its own network connection outside
+the governed dispatch API. Use OS/network isolation when that threat is in
+scope. Sensitive-content recognition is heuristic; do not rely on it as the
+only control for regulated data.
 
 ### 2.3 Credential Scoping
 
@@ -230,6 +254,10 @@ authorization model, but the rules below apply uniformly.
 - Escape from a declared OS-level isolation posture (§2.2): an
   attacker-controlled code path reaching state that the posture
   claimed to confine.
+- Bypass of the Quorum governed-dispatch boundary: a model-provider or
+  registered network-capable tool call proceeding despite an applicable policy
+  ceiling, missing cloud consent, an unavailable policy engine, or sensitive
+  content that the engine did recognize.
 - Unauthorized external-surface access: a caller outside the
   configured authorization set (allowlist, or OS-level equivalent
   for local-IPC surfaces) dispatching work, receiving output, or
@@ -261,6 +289,10 @@ private-disclosure channel and don't receive advisories.
   analogous reports against future heuristics. These components are
   not boundaries; defeating them is not a vulnerability under this
   policy.
+- **A novel string not recognized as sensitive.** Sensitive-content detection
+  is a heuristic and cannot define every regulated or private datum. Reports
+  are welcome as normal hardening issues. A recognized category that is then
+  allowed across a governed boundary is in scope under §3.1.
 - **Prompt injection per se.** Getting the LLM to emit unusual
   output — via injected content, hallucination, training artifacts,
   or any other cause — is not itself a vulnerability. "I achieved
@@ -329,7 +361,6 @@ that:
 
 - **Coordinated disclosure window:** 90 days from report, or until a
   fix is released, whichever comes first.
-- **Channel:** the GHSA thread or email correspondence with
-  security@nousresearch.com.
+- **Channel:** the Quorum-Agent GHSA thread.
 - **Credit:** reporters are credited in release notes unless
   anonymity is requested.

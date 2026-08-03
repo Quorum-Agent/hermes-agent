@@ -169,7 +169,7 @@ describe('resolveMediaPlaybackSrc', () => {
     $connection.set({ mode: 'local' } as never)
 
     await expect(resolveMediaPlaybackSrc('C:\\renders\\demo.mp4')).resolves.toBe(
-      'hermes-media://stream/C%3A%5Crenders%5Cdemo.mp4'
+      'quorum-media://stream/C%3A%5Crenders%5Cdemo.mp4'
     )
   })
 })

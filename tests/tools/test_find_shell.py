@@ -16,6 +16,7 @@ import pytest
 from tools.environments.local import _find_bash, _find_shell
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="POSIX shell preference")
 class TestFindShellPrefersUserShell:
     """_find_shell should prefer $SHELL over bash on POSIX."""
 
@@ -110,12 +111,14 @@ class TestFindBashSkipsBrokenCustomPath:
         broken = tmp_path / "broken" / "bash.exe"
         broken.parent.mkdir()
         broken.write_text("", encoding="utf-8")
-        portable = tmp_path / "hermes" / "git" / "bin" / "bash.exe"
+        quorum_home = tmp_path / "quorum"
+        portable = quorum_home / "git" / "bin" / "bash.exe"
         portable.parent.mkdir(parents=True)
         portable.write_text("", encoding="utf-8")
 
         monkeypatch.setenv("HERMES_GIT_BASH_PATH", str(broken))
         monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        monkeypatch.setenv("HERMES_HOME", str(quorum_home))
 
         def fake_starts(path: str) -> bool:
             return path == str(portable)
@@ -152,13 +155,15 @@ class TestGitBashExternalProgramProbe:
 
         local_mod._bash_starts_cache.clear()
         local_mod._bash_probe_details_cache.clear()
-        portable = tmp_path / "hermes" / "git" / "bin" / "bash.exe"
+        quorum_home = tmp_path / "quorum"
+        portable = quorum_home / "git" / "bin" / "bash.exe"
         portable.parent.mkdir(parents=True)
         portable.write_text("", encoding="utf-8")
 
         monkeypatch.setattr(local_mod, "_IS_WINDOWS", True)
         monkeypatch.setenv("HERMES_GIT_BASH_PATH", "")
         monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+        monkeypatch.setenv("HERMES_HOME", str(quorum_home))
         monkeypatch.setenv("ProgramFiles", str(tmp_path / "empty-program-files"))
         monkeypatch.delenv("ProgramFiles(x86)", raising=False)
         monkeypatch.setattr(local_mod.shutil, "which", lambda _name: None)
@@ -178,7 +183,7 @@ class TestGitBashExternalProgramProbe:
         assert "Mandatory ASLR" in message
         assert "Reinstalling Git will not change" in message
         assert "Set-ProcessMitigation" in message
-        assert str(tmp_path / "hermes" / "git") in message
+        assert str(quorum_home / "git") in message
 
 
 @pytest.mark.skipif(

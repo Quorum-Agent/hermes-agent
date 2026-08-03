@@ -18,6 +18,7 @@ import os
 import tempfile
 import time
 from typing import Any, Mapping, Optional
+from product_identity import HOME_DIR_NAME
 from utils import atomic_replace
 
 logger = logging.getLogger(__name__)
@@ -32,7 +33,7 @@ def _state_path() -> str:
         from hermes_constants import get_hermes_home
         base = get_hermes_home()
     except ImportError:
-        base = os.path.join(os.path.expanduser("~"), ".hermes")
+        base = os.path.join(os.path.expanduser("~"), HOME_DIR_NAME)
     return os.path.join(base, _STATE_SUBDIR, _STATE_FILENAME)
 
 

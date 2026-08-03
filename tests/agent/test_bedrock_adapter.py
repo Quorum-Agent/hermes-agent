@@ -729,11 +729,24 @@ class TestBedrockContextProbe:
         # via the 'anthropic.claude-opus-4' substring match).
         from agent.bedrock_adapter import get_bedrock_context_length
         err = "prompt is too long: 5000032 tokens > 1000000 maximum"
-        with patch("agent.bedrock_adapter._get_bedrock_runtime_client",
-                   return_value=self._client_raising(err)):
+        with patch("product_identity.IS_QUORUM_EDITION", False), patch(
+            "agent.bedrock_adapter._get_bedrock_runtime_client",
+            return_value=self._client_raising(err),
+        ):
             assert get_bedrock_context_length(
                 "eu.anthropic.claude-opus-4-8",
                 region="eu-central-1") == 1_000_000
+
+    def test_quorum_edition_never_calls_bedrock_for_metadata(self):
+        from agent.bedrock_adapter import get_bedrock_context_length
+
+        with patch("agent.bedrock_adapter._get_bedrock_runtime_client") as client:
+            assert get_bedrock_context_length(
+                "anthropic.claude-opus-4-6",
+                region="eu-central-1",
+            ) == 1_000_000
+
+        client.assert_not_called()
 
 
 

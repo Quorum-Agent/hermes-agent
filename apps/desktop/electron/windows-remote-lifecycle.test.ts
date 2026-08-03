@@ -9,6 +9,7 @@ import {
   encodedPowerShell,
   helperCommand,
   powerShellCommand,
+  probeWindowsRemote,
   psLiteral,
   reusableWindowsLock,
   validLock
@@ -52,6 +53,31 @@ test('platform detection preserves POSIX and falls back to Windows PowerShell', 
   assert.match(calls[1], /EncodedCommand/)
 })
 
+test('Windows probe defaults to Quorum state and checks it before PATH', async () => {
+  let encoded = ''
+
+  const result = await probeWindowsRemote(
+    sshWith(async command => {
+      encoded = command.split(' ').pop()!
+
+      return JSON.stringify({
+        os: 'Windows',
+        arch: 'AMD64',
+        hermesHome: 'C:\\Users\\writer\\AppData\\Local\\quorum',
+        hermesPath: 'C:\\Users\\writer\\AppData\\Local\\quorum\\hermes-agent\\venv\\Scripts\\hermes.exe',
+        python: 'C:\\Users\\writer\\AppData\\Local\\quorum\\hermes-agent\\venv\\Scripts\\python.exe'
+      })
+    })
+  )
+
+  const script = Buffer.from(encoded, 'base64').toString('utf16le')
+
+  assert.match(script, /LOCALAPPDATA 'quorum'/)
+  assert.ok(script.indexOf('hermes-agent\\venv\\Scripts\\hermes.exe') < script.indexOf('Get-Command hermes.exe'))
+  assert.doesNotMatch(script, /Join-Path \$HOME "hermes-agent/)
+  assert.match(result.hermesHome, /\\quorum$/)
+})
+
 test('platform detection surfaces transport failures as themselves, not unsupported-platform', async () => {
   // A dead/unauthorized host is a connectivity verdict; only a host that answers
   // neither probe is an unsupported platform.
@@ -74,10 +100,10 @@ test('platform detection surfaces transport failures as themselves, not unsuppor
           throw new Error('not recognized')
         }
 
-        throw new Error('Hermes is not installed on the remote Windows host.')
+        throw new Error('Quorum is not installed on the remote Windows host.')
       })
     ),
-    (err: any) => err.kind === 'unsupported-platform' && /Hermes is not installed/.test(err.message)
+    (err: any) => err.kind === 'unsupported-platform' && /Quorum is not installed/.test(err.message)
   )
 })
 
@@ -146,4 +172,5 @@ test('Windows integrated terminal uses encoded PowerShell and preserves cwd as l
   const script = Buffer.from(command.split(' ').pop()!, 'base64').toString('utf16le')
   assert.match(script, /Set-Location -LiteralPath 'C:\\Users\\O''Brien\\repo'/)
   assert.match(script, /powershell\.exe -NoLogo/)
+  assert.match(script, /Quorum SSH/)
 })

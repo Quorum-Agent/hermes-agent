@@ -161,6 +161,12 @@ class TestProfileCompletion:
                 break
         assert has_profiles_in_action, "profile actions should complete with _hermes_profiles"
 
+    @pytest.mark.parametrize("generator", [generate_bash, generate_zsh, generate_fish])
+    def test_profile_discovery_uses_quorum_home(self, generator):
+        out = generator(_make_parser())
+        assert "$HOME/.quorum/profiles" in out
+        assert "$HOME/.hermes/profiles" not in out
+
 
     def test_fish_profile_actions_complete_names(self):
         out = generate_fish(_make_parser())

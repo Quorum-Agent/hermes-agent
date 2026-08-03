@@ -46,6 +46,11 @@ import re
 import unicodedata
 from typing import List, Optional, Tuple
 
+from product_identity import HOME_DIR_NAME
+
+
+_MANAGED_HOME_RE = rf"(?:{re.escape(HOME_DIR_NAME)}|\.hermes)"
+
 # Hard cap on text scanned with regexes.  Context/tool-result strings can be
 # arbitrarily large, and the scanners are advisory guards rather than archival
 # search; bounding input keeps worst-case runtime predictable while preserving
@@ -126,9 +131,9 @@ _PATTERNS: List[Tuple[str, str, str]] = [
     # ── Persistence / SSH backdoor (strict scope — memory + skills) ──
     (r'authorized_keys', "ssh_backdoor", "strict"),
     (r'\$HOME/\.ssh|\~/\.ssh', "ssh_access", "strict"),
-    (r'\$HOME/\.hermes/\.env|\~/\.hermes/\.env', "hermes_env", "strict"),
+    (rf'\$HOME/{_MANAGED_HOME_RE}/\.env|\~/{_MANAGED_HOME_RE}/\.env', "hermes_env", "strict"),
     (r'(update|modify|edit|write|change|append|add\s+to)\s+[^\n]{0,2048}(?:AGENTS\.md|CLAUDE\.md|\.cursorrules|\.clinerules)', "agent_config_mod", "strict"),
-    (r'(update|modify|edit|write|change|append|add\s+to)\s+[^\n]{0,2048}\.hermes/(config\.yaml|SOUL\.md)', "hermes_config_mod", "strict"),
+    (rf'(update|modify|edit|write|change|append|add\s+to)\s+[^\n]{{0,2048}}{_MANAGED_HOME_RE}/(config\.yaml|SOUL\.md)', "hermes_config_mod", "strict"),
 
     # ── Hardcoded secrets ────────────────────────────────────────────
     (r'(?:api[_-]?key|token|secret|password)\s*[=:]\s*["\'][A-Za-z0-9+/=_-]{20,}', "hardcoded_secret", "strict"),

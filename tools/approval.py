@@ -23,6 +23,7 @@ import time
 import unicodedata
 from typing import Optional
 from hermes_cli.config import cfg_get
+from product_identity import HOME_DIR_NAME
 
 from tools.interrupt import is_interrupted
 from utils import env_var_enabled, is_truthy_value
@@ -269,9 +270,10 @@ def _is_gateway_approval_context() -> bool:
 # go stale when HERMES_HOME is set after this module is imported, e.g. under the
 # hermetic test conftest or any deferred-profile-resolution path).
 _SSH_SENSITIVE_PATH = r'(?:~|\$home|\$\{home\})/\.ssh(?:/|$)'
+_MANAGED_HOME_COMPONENT = rf'(?:{re.escape(HOME_DIR_NAME)}|\.hermes)'
 _HERMES_ENV_PATH = (
-    r'(?:~\/\.hermes/|'
-    r'(?:\$home|\$\{home\})/\.hermes/|'
+    rf'(?:~\/{_MANAGED_HOME_COMPONENT}/|'
+    rf'(?:\$home|\$\{{home\}})/{_MANAGED_HOME_COMPONENT}/|'
     r'(?:\$hermes_home|\$\{hermes_home\})/)'
     r'\.env\b'
 )
@@ -284,8 +286,8 @@ _HERMES_ENV_PATH = (
 # theater. Mirrors _HERMES_ENV_PATH; matches the HERMES_HOME override form as
 # well as ~/.hermes/.
 _HERMES_CONFIG_PATH = (
-    r'(?:~\/\.hermes/|'
-    r'(?:\$home|\$\{home\})/\.hermes/|'
+    rf'(?:~\/{_MANAGED_HOME_COMPONENT}/|'
+    rf'(?:\$home|\$\{{home\}})/{_MANAGED_HOME_COMPONENT}/|'
     r'(?:\$hermes_home|\$\{hermes_home\})/)'
     r'config\.yaml\b'
 )
@@ -1165,7 +1167,7 @@ def _rewrite_resolved_hermes_home(command: str) -> str:
         ]
     except Exception:
         return command
-    return _fold_home_prefixes(command, candidates, "~/.hermes")
+    return _fold_home_prefixes(command, candidates, f"~/{HOME_DIR_NAME}")
 
 
 _PARAM_REPLACEMENT_RE = re.compile(r"\$\{[^}/\s]+/[^}/]*/(?P<replacement>[^}]*)\}")
@@ -2110,13 +2112,23 @@ def _is_verification_artifact_cleanup(command: str) -> bool:
         return False
 
     operand = argv[2]
-    temp_dir = os.path.realpath(tempfile.gettempdir())
-    basename = os.path.basename(operand)
-    if operand != os.path.join(temp_dir, basename):
+    # Preserve the narrow spelling requirement without assuming POSIX path
+    # semantics.  On Windows ``realpath('/tmp')`` is drive-qualified, so a
+    # raw string comparison against ``/tmp/file`` incorrectly rejects the
+    # same canonical directory.  Explicit dot segments remain forbidden:
+    # accepting them would broaden this one-file cleanup exemption.
+    operand_parts = operand.replace("\\", "/").split("/")
+    if not os.path.isabs(operand) or any(part in {".", ".."} for part in operand_parts):
         return False
 
-    target = os.path.realpath(operand)
-    if os.path.dirname(target) != temp_dir:
+    temp_dir = os.path.normcase(os.path.realpath(tempfile.gettempdir()))
+    basename = os.path.basename(operand)
+    lexical_parent = os.path.normcase(os.path.abspath(os.path.dirname(operand)))
+    if lexical_parent != temp_dir:
+        return False
+
+    target = os.path.normcase(os.path.realpath(operand))
+    if os.path.normcase(os.path.dirname(target)) != temp_dir:
         return False
     return re.fullmatch(r"hermes-(?:verify|ad-hoc)-[A-Za-z0-9_.-]+", basename) is not None
 
