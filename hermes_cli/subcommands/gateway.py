@@ -232,7 +232,8 @@ def build_gateway_parser(
             "Stop, disable, and remove legacy Hermes gateway unit files "
             "(e.g. hermes.service) left over from older installs. Profile "
             "units (hermes-gateway-<profile>.service) and unrelated "
-            "third-party services are never touched."
+            "third-party services are never touched. Profile units "
+            "(quorum-gateway-<profile>.service) are also left alone."
         ),
     )
     gateway_migrate_legacy.add_argument(

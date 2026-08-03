@@ -2448,7 +2448,7 @@ DEFAULT_CONFIG = {
             "export_interval_seconds": 60,
             "logs_export_interval_seconds": 5,
             "resource_attributes": {
-                "service.name": "hermes-gateway",
+                "service.name": "quorum-gateway",
                 "deployment.environment.name": "production",
             },
         },
