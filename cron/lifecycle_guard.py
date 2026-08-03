@@ -75,7 +75,7 @@ _GATEWAY_LIFECYCLE_PATTERN = re.compile(
     # Branch D: pkill / kill targeting the hermes gateway process. Both
     # token orders because real reproductions show both.
     r"|(?:p?kill\b[^\n]*\b(?:hermes|quorum)\b[^\n]*\bgateway)"
-    r"|(?:p?kill\b[^\n]*\bgateway\b[^\n]*\bhermes)"
+    r"|(?:p?kill\b[^\n]*\bgateway\b[^\n]*\b(?:hermes|quorum))"
 )
 
 

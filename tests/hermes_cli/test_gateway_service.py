@@ -1240,6 +1240,46 @@ class TestLegacyHermesUnitDetection:
         names = [name for name, _, _ in results]
         assert "hermes-gateway.service" not in names
 
+    def test_prior_edition_owned_by_home_boundary_is_migrated(self, tmp_path, monkeypatch):
+        """A markerless ``hermes-gateway.service`` whose ExecStart/Environment
+        embeds THIS install's home at a path boundary is our own pre-rename unit
+        → detected for migration."""
+        user_dir, _ = self._setup_search_paths(tmp_path, monkeypatch)
+        home = tmp_path / ".quorum"
+        home.mkdir()
+        home_real = os.path.realpath(str(home))
+        monkeypatch.setattr(gateway_cli, "get_hermes_home", lambda: home)
+        monkeypatch.setattr(gateway_cli, "PROJECT_ROOT", tmp_path / "checkout")
+        ours = (
+            "[Unit]\nDescription=Gateway\n[Service]\n"
+            f'Environment="HERMES_HOME={home_real}"\n'
+            "ExecStart=/x/python -m hermes_cli.main gateway run\n"
+        )
+        (user_dir / "hermes-gateway.service").write_text(ours, encoding="utf-8")
+
+        results = gateway_cli._find_legacy_hermes_units()
+        assert "hermes-gateway.service" in [n for n, _, _ in results]
+
+    def test_prior_edition_ownership_requires_path_boundary(self, tmp_path, monkeypatch):
+        """A unit that merely has our home as a string *prefix* (``.quorum`` vs
+        ``.quorum-backup``) is a DIFFERENT install and must not be claimed as
+        ours — ownership matches whole path components, not raw substrings."""
+        user_dir, _ = self._setup_search_paths(tmp_path, monkeypatch)
+        home = tmp_path / ".quorum"
+        home.mkdir()
+        home_real = os.path.realpath(str(home))
+        monkeypatch.setattr(gateway_cli, "get_hermes_home", lambda: home)
+        monkeypatch.setattr(gateway_cli, "PROJECT_ROOT", tmp_path / "checkout")
+        # <home>-backup: our home is a prefix but not a path-boundary match.
+        prefix_collision = (
+            "[Unit]\nDescription=Gateway\n[Service]\n"
+            f'Environment="HERMES_HOME={home_real}-backup"\n'
+            "ExecStart=/x/python -m hermes_cli.main gateway run\n"
+        )
+        (user_dir / "hermes-gateway.service").write_text(prefix_collision, encoding="utf-8")
+
+        results = gateway_cli._find_legacy_hermes_units()
+        assert "hermes-gateway.service" not in [n for n, _, _ in results]
 
 
 class TestRemoveLegacyHermesUnits:
