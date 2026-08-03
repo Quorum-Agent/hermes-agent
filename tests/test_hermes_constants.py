@@ -95,6 +95,23 @@ class TestGetProcessHermesHome:
         monkeypatch.setenv("HERMES_HOME", str(home))
         assert get_process_hermes_home() == home
 
+    def test_quorum_home_preferred_over_hermes_home(self, tmp_path, monkeypatch):
+        """QUORUM_HOME wins over HERMES_HOME so a Quorum install stays isolated
+        from a side-by-side Hermes (prefer-Quorum-fall-back-to-Hermes)."""
+        quorum = tmp_path / "quorum-home"
+        hermes = tmp_path / "hermes-home"
+        monkeypatch.setenv("HERMES_HOME", str(hermes))
+        monkeypatch.setenv("QUORUM_HOME", str(quorum))
+        assert get_process_hermes_home() == quorum
+
+    def test_hermes_home_used_when_quorum_unset(self, tmp_path, monkeypatch):
+        """HERMES_HOME remains a fallback when QUORUM_HOME is unset, so existing
+        setups and Hermes-spawned subprocesses keep working."""
+        hermes = tmp_path / "hermes-home"
+        monkeypatch.delenv("QUORUM_HOME", raising=False)
+        monkeypatch.setenv("HERMES_HOME", str(hermes))
+        assert get_process_hermes_home() == hermes
+
 
 
 
