@@ -60,7 +60,10 @@ class TestSecretCaptureGuidance:
     def test_gateway_secret_capture_message_points_to_local_setup(self):
         message = GATEWAY_SECRET_CAPTURE_UNSUPPORTED_MESSAGE
         assert "local cli" in message.lower()
-        assert "~/.hermes/.env" in message
+        # Points at the edition's home ``.env`` (derived from HOME_DIR_NAME via
+        # display_hermes_home), not the upstream ``~/.hermes`` brand.
+        assert "/.env" in message
+        assert ".hermes" not in message
 
 
 class TestSafeUrlForLog:
