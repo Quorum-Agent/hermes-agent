@@ -9871,7 +9871,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
                 service_name = get_service_name()
             except Exception:
-                service_name = "hermes-gateway"
+                service_name = "quorum-gateway"
 
             current_pid = os.getpid()
 

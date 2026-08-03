@@ -82,7 +82,7 @@ def _runtime_resource_attributes(
     attrs = _safe_resource_attributes(gh.get("resource_attributes"))
     from agent.monitoring.gateway_health import _safe_instance_id
 
-    attrs["service.name"] = "hermes-gateway"
+    attrs["service.name"] = "quorum-gateway"
     attrs["service.instance.id"] = _safe_instance_id(_install_id(config))
     attrs["telemetry.scope"] = telemetry_scope
     return attrs

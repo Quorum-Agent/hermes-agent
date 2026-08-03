@@ -59,7 +59,7 @@ def test_trace_resource_includes_stable_hashed_instance():
         {"monitoring": {"install_id": "private-install-id"}}
     )
 
-    assert attrs["service.name"] == "hermes-gateway"
+    assert attrs["service.name"] == "quorum-gateway"
     assert attrs["service.instance.id"].startswith("sha256:")
     assert len(attrs["service.instance.id"]) == len("sha256:") + 24
     assert "private-install-id" not in str(attrs)

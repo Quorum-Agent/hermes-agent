@@ -3253,7 +3253,7 @@ def _for_each_systemd_gateway_unit(
     process_unit,
     on_unit_timeout,
 ) -> None:
-    """Process each ``hermes-gateway*.service`` from ``systemctl list-units``.
+    """Process each ``quorum-gateway*`` / ``hermes-gateway*`` service from ``systemctl list-units``.
 
     ``subprocess.TimeoutExpired`` raised by ``process_unit`` is isolated to
     that unit via ``on_unit_timeout`` so one wedged systemctl call cannot
@@ -3267,8 +3267,10 @@ def _for_each_systemd_gateway_unit(
         if not unit.endswith(".service"):
             continue
         # list-units is already pattern-filtered, but keep the name gate so a
-        # stray non-gateway line cannot enter the restart path.
-        if not unit.startswith("hermes-gateway"):
+        # stray non-gateway line cannot enter the restart path. Match the
+        # current ``quorum-gateway`` name and the prior ``hermes-gateway`` name
+        # (un-migrated installs / transition window) so update restarts ours.
+        if not (unit.startswith("quorum-gateway") or unit.startswith("hermes-gateway")):
             continue
         svc_name = unit.removesuffix(".service")
         try:
@@ -4821,7 +4823,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
                 non-interactive sudo (``sudo -n``) — first a blanket probe,
                 then a targeted ``systemctl reset-failed`` probe so a
                 least-privilege sudoers entry scoped to
-                ``systemctl ... hermes-gateway*`` also qualifies
+                ``systemctl ... quorum-gateway*`` also qualifies
                 (``reset-failed`` is an idempotent no-op we run before every
                 privileged restart anyway).  If neither works, return None —
                 the caller must SKIP the restart (without draining the
@@ -4900,7 +4902,8 @@ def _cmd_update_impl(args, gateway_mode: bool):
                             scope_cmd
                             + [
                                 "list-units",
-                                "hermes-gateway*",
+                                "quorum-gateway*",
+                                "hermes-gateway*",  # prior-edition units (transition)
                                 "--plain",
                                 "--no-legend",
                                 "--no-pager",
@@ -4930,6 +4933,34 @@ def _cmd_update_impl(args, gateway_mode: bool):
                         )
                         if check.stdout.strip() != "active":
                             return
+
+                        # Prior-edition ``hermes-gateway`` collides with a
+                        # coexisting upstream Hermes's CURRENT unit name. Only
+                        # restart such a unit if it is OUR own pre-rename unit
+                        # (ownership-verified via home/checkout or our marker);
+                        # never touch a side-by-side Hermes install's gateway.
+                        # ``quorum-gateway*`` units are ours by name and skip
+                        # this. Fail closed: if we cannot read/verify the unit,
+                        # do NOT restart it.
+                        if svc_name.startswith("hermes-gateway"):
+                            try:
+                                from hermes_cli.gateway import _unit_is_ours
+                                frag = subprocess.run(
+                                    scope_cmd
+                                    + ["show", svc_name,
+                                       "--property=FragmentPath", "--value"],
+                                    capture_output=True, text=True,
+                                    encoding="utf-8", errors="replace",
+                                    timeout=5,
+                                ).stdout.strip()
+                                if not frag or not os.path.exists(frag):
+                                    return
+                                with open(frag, encoding="utf-8",
+                                          errors="ignore") as _fh:
+                                    if not _unit_is_ours(_fh.read()):
+                                        return
+                            except Exception:
+                                return
 
                         # Resolve how we may run manage-units verbs
                         # (reset-failed/start/restart) for this scope.
@@ -5388,7 +5419,7 @@ def _cmd_update_impl(args, gateway_mode: bool):
                     print(f"    {path}  ({scope} scope)")
                 print()
                 print("  These pre-rename units (hermes.service) fight the current")
-                print("  hermes-gateway.service for the bot token and cause SIGTERM")
+                print("  quorum-gateway.service for the bot token and cause SIGTERM")
                 print("  flap loops. Remove them with:")
                 print()
                 print("    hermes gateway migrate-legacy")
