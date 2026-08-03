@@ -349,6 +349,13 @@ build-backend = "setuptools.build_meta"
 hermes = "hermes_cli.main:main"
 hermes-agent = "run_agent:main"
 hermes-acp = "acp_adapter.entry:main"
+# Quorum Edition aliases — same entry points under the edition's own name so a
+# `quorum` install can sit side-by-side with an upstream `hermes` install
+# without the two binaries colliding on PATH. The `hermes*` names are retained
+# as aliases (prefer-Quorum-fall-back-to-Hermes), so existing usage keeps working.
+quorum = "hermes_cli.main:main"
+quorum-agent = "run_agent:main"
+quorum-acp = "acp_adapter.entry:main"
 
 [tool.uv]
 override-dependencies = [
