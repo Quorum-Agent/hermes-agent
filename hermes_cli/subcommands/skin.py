@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_skin_parser(subparsers, *, cmd_skin: Callable) -> None:
     """Attach the ``skin`` subcommand to ``subparsers``."""
     skin_parser = subparsers.add_parser(
         "skin",
         help="List, switch, and tweak skins",
-        description="Manage Hermes skins. `set` tweaks one color of the active skin in place.",
+        description=f"Manage {PRODUCT_NAME} skins. `set` tweaks one color of the active skin in place.",
     )
     skin_subparsers = skin_parser.add_subparsers(dest="skin_command")
 

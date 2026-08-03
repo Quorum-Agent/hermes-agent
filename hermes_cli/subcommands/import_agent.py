@@ -9,16 +9,18 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_import_agent_parser(subparsers, *, cmd_import_agent: Callable) -> None:
     """Attach the ``import-agent`` subcommand to ``subparsers``."""
     parser = subparsers.add_parser(
         "import-agent",
-        help="Import a Claude Code or Codex CLI setup into Hermes",
+        help=f"Import a Claude Code or Codex CLI setup into {PRODUCT_NAME}",
         description=(
-            "One-command import of another coding agent's setup into Hermes. "
+            f"One-command import of another coding agent's setup into {PRODUCT_NAME}. "
             "Maps CLAUDE.md/AGENTS.md instructions, permission allowlists, MCP "
-            "servers, skills, and memories into their Hermes equivalents. "
+            f"servers, skills, and memories into their {PRODUCT_NAME} equivalents. "
             "Always shows a preview before making changes. API keys and "
             "credentials are never imported — run 'hermes setup' for those."
         ),
@@ -41,7 +43,7 @@ def build_import_agent_parser(subparsers, *, cmd_import_agent: Callable) -> None
     parser.add_argument(
         "--overwrite",
         action="store_true",
-        help="Overwrite existing Hermes items on name conflicts (default: skip)",
+        help=f"Overwrite existing {PRODUCT_NAME} items on name conflicts (default: skip)",
     )
     parser.add_argument(
         "--yes", "-y", action="store_true", help="Skip confirmation prompts"

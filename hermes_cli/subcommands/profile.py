@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_profile_parser(subparsers, *, cmd_profile: Callable) -> None:
     """Attach the ``profile`` subcommand to ``subparsers``."""
@@ -16,7 +18,7 @@ def build_profile_parser(subparsers, *, cmd_profile: Callable) -> None:
     # =========================================================================
     profile_parser = subparsers.add_parser(
         "profile",
-        help="Manage profiles — multiple isolated Hermes instances",
+        help=f"Manage profiles — multiple isolated {PRODUCT_NAME} instances",
     )
     profile_subparsers = profile_parser.add_subparsers(dest="profile_action")
 
@@ -148,7 +150,7 @@ def build_profile_parser(subparsers, *, cmd_profile: Callable) -> None:
         "install",
         help="Install a profile distribution from a git URL or local directory",
         description=(
-            "Install a Hermes profile distribution. SOURCE can be a git URL "
+            f"Install a {PRODUCT_NAME} profile distribution. SOURCE can be a git URL "
             "(github.com/user/repo, https://..., git@...) or a local "
             "directory containing distribution.yaml at its root."
         ),

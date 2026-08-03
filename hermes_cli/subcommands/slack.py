@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_slack_parser(subparsers, *, cmd_slack: Callable) -> None:
     """Attach the ``slack`` subcommand to ``subparsers``."""
@@ -17,7 +19,7 @@ def build_slack_parser(subparsers, *, cmd_slack: Callable) -> None:
     slack_parser = subparsers.add_parser(
         "slack",
         help="Slack integration helpers (manifest generation, etc.)",
-        description="Slack integration helpers for Hermes.",
+        description=f"Slack integration helpers for {PRODUCT_NAME}.",
     )
     slack_sub = slack_parser.add_subparsers(dest="slack_command")
     slack_manifest = slack_sub.add_parser(

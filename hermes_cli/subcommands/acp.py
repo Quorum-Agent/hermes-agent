@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Callable
 
 from hermes_cli.subcommands._shared import add_accept_hooks_flag
-from product_identity import HOME_DIR_NAME
+from product_identity import HOME_DIR_NAME, PRODUCT_NAME
 
 
 def build_acp_parser(subparsers, *, cmd_acp: Callable) -> None:
@@ -24,7 +24,7 @@ def build_acp_parser(subparsers, *, cmd_acp: Callable) -> None:
         "--version",
         action="store_true",
         dest="acp_version",
-        help="Print Hermes ACP version and exit",
+        help=f"Print {PRODUCT_NAME} ACP version and exit",
     )
     acp_parser.add_argument(
         "--check",
@@ -34,7 +34,7 @@ def build_acp_parser(subparsers, *, cmd_acp: Callable) -> None:
     acp_parser.add_argument(
         "--setup",
         action="store_true",
-        help="Run interactive Hermes provider/model setup for ACP terminal auth",
+        help=f"Run interactive {PRODUCT_NAME} provider/model setup for ACP terminal auth",
     )
     acp_parser.add_argument(
         "--setup-browser",

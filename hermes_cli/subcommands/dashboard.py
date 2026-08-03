@@ -13,7 +13,7 @@ from __future__ import annotations
 import argparse
 from typing import Callable
 
-from product_identity import HOME_DIR_NAME
+from product_identity import HOME_DIR_NAME, PRODUCT_NAME
 
 
 def _add_server_runtime_args(parser) -> None:
@@ -77,12 +77,12 @@ def _add_server_runtime_args(parser) -> None:
     parser.add_argument(
         "--stop",
         action="store_true",
-        help="Stop all running Hermes web server processes and exit",
+        help=f"Stop all running {PRODUCT_NAME} web server processes and exit",
     )
     parser.add_argument(
         "--status",
         action="store_true",
-        help="List running Hermes web server processes and exit",
+        help=f"List running {PRODUCT_NAME} web server processes and exit",
     )
 
 
@@ -137,9 +137,9 @@ def build_dashboard_parser(
     # =========================================================================
     serve_parser = subparsers.add_parser(
         "serve",
-        help="Start the Hermes backend server (headless; powers the desktop app and remote backends)",
+        help=f"Start the {PRODUCT_NAME} backend server (headless; powers the desktop app and remote backends)",
         description=(
-            "Run the Hermes backend server — the JSON-RPC/WebSocket gateway the "
+            f"Run the {PRODUCT_NAME} backend server — the JSON-RPC/WebSocket gateway the "
             "desktop app and remote clients connect to. Headless: it never opens "
             "a browser UI."
         ),
