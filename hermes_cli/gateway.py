@@ -5862,7 +5862,7 @@ def _setup_weixin():
     print_info("  1. Hermes will open Tencent iLink QR login in this terminal.")
     print_info("  2. Use WeChat to scan and confirm the QR code.")
     print_info(
-        "  3. Hermes will store the returned account_id/token in ~/.hermes/.env."
+        f"  3. Hermes will store the returned account_id/token in ~/{HOME_DIR_NAME}/.env."
     )
     print_info(
         "  4. This adapter supports native text, image, video, and document delivery."
@@ -6355,7 +6355,7 @@ def _configure_platform(platform: dict) -> None:
     print(color(f"  ─── {emoji} {label} Setup ───", Colors.CYAN))
     required = entry.required_env if entry else []
     if required:
-        print_info(f"  Set these env vars in ~/.hermes/.env: {', '.join(required)}")
+        print_info(f"  Set these env vars in ~/{HOME_DIR_NAME}/.env: {', '.join(required)}")
     else:
         print_info(
             f"  Configure {label} in config.yaml under gateway.platforms.{platform['key']}"
@@ -6963,7 +6963,7 @@ def _gateway_command_inner(args):
                 "  tmux new -s hermes 'hermes gateway run'         # persistent via tmux"
             )
             print(
-                "  nohup hermes gateway run > ~/.hermes/logs/gateway.log 2>&1 &  # background"
+                f"  nohup hermes gateway run > ~/{HOME_DIR_NAME}/logs/gateway.log 2>&1 &  # background"
             )
             sys.exit(1)
         elif is_container():
@@ -7082,7 +7082,7 @@ def _gateway_command_inner(args):
                 "  tmux new -s hermes 'hermes gateway run'         # persistent via tmux"
             )
             print(
-                "  nohup hermes gateway run > ~/.hermes/logs/gateway.log 2>&1 &  # background"
+                f"  nohup hermes gateway run > ~/{HOME_DIR_NAME}/logs/gateway.log 2>&1 &  # background"
             )
             print()
             print(
@@ -7430,14 +7430,14 @@ def _gateway_command_inner(args):
                 print("  hermes gateway run      # Run in foreground")
                 if is_termux():
                     print(
-                        "  nohup hermes gateway run > ~/.hermes/logs/gateway.log 2>&1 &  # Best-effort background start"
+                        f"  nohup hermes gateway run > ~/{HOME_DIR_NAME}/logs/gateway.log 2>&1 &  # Best-effort background start"
                     )
                 elif is_wsl():
                     print(
                         "  tmux new -s hermes 'hermes gateway run'         # persistent via tmux"
                     )
                     print(
-                        "  nohup hermes gateway run > ~/.hermes/logs/gateway.log 2>&1 &  # background"
+                        f"  nohup hermes gateway run > ~/{HOME_DIR_NAME}/logs/gateway.log 2>&1 &  # background"
                     )
                 elif is_windows():
                     print(
