@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from typing import Optional
 
+from product_identity import HOME_DIR_NAME
+
 
 def _hermes_home_path() -> Path:
     """Resolve the active HERMES_HOME (profile-aware) without circular imports."""
@@ -13,7 +15,7 @@ def _hermes_home_path() -> Path:
         from hermes_constants import get_hermes_home  # local import to avoid cycles
         return get_hermes_home()
     except Exception:
-        return Path(os.path.expanduser("~/.hermes"))
+        return Path(os.path.expanduser(f"~/{HOME_DIR_NAME}"))
 
 
 def _hermes_root_path() -> Path:
@@ -22,7 +24,7 @@ def _hermes_root_path() -> Path:
         from hermes_constants import get_default_hermes_root  # local import to avoid cycles
         return get_default_hermes_root()
     except Exception:
-        return Path(os.path.expanduser("~/.hermes"))
+        return Path(os.path.expanduser(f"~/{HOME_DIR_NAME}"))
 
 
 def build_write_denied_paths(home: str) -> set[str]:

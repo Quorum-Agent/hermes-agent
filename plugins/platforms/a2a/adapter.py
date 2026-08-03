@@ -120,7 +120,8 @@ def _profile_home(profile: str) -> Optional[str]:
                 return str(get_hermes_home())
             except Exception:
                 return None
-        return os.path.expanduser(f"~/.hermes/profiles/{profile}")
+        from product_identity import HOME_DIR_NAME
+        return os.path.expanduser(f"~/{HOME_DIR_NAME}/profiles/{profile}")
 
 def _safe_context_slug(value: str, max_len: int = 96) -> str:
     """Sanitize attacker-provided context ids before using in session titles."""
