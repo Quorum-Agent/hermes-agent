@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Callable
 
+from product_identity import PRODUCT_NAME
+
 
 def build_auth_parser(subparsers, *, cmd_auth: Callable) -> None:
     """Attach the ``auth`` subcommand to ``subparsers``."""
@@ -71,7 +73,7 @@ def build_auth_parser(subparsers, *, cmd_auth: Callable) -> None:
     )
     auth_logout.add_argument("provider", help="Provider id")
     auth_spotify = auth_subparsers.add_parser(
-        "spotify", help="Authenticate Hermes with Spotify via PKCE"
+        "spotify", help=f"Authenticate {PRODUCT_NAME} with Spotify via PKCE"
     )
     auth_spotify.add_argument(
         "spotify_action",
