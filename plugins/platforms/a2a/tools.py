@@ -58,6 +58,22 @@ def _resolve_peer(agent: str) -> Optional[dict]:
     peers = cfg.get("a2a_agents") or {}
     entry = peers.get(agent)
     if not entry:
+        # Fall back to the live self-announcing peer registry. A registry row is
+        # a discovery HINT — trust is still re-decided per call at the A2A
+        # handshake, so a stale/squatted row costs at most a wasted dial.
+        try:
+            from gateway import peer_registry
+            found = peer_registry.resolve(agent)
+        except Exception:
+            found = None
+        if found and found.get("a2a_url"):
+            return {
+                "url": found["a2a_url"],
+                "auth": {},
+                "timeout": _DEFAULT_TIMEOUT,
+                "capabilities": found.get("capabilities", []) or [],
+                "tenant": "",
+            }
         return None
     return {
         "url": entry.get("url", ""),

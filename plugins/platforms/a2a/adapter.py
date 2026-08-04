@@ -443,6 +443,24 @@ class A2AAdapter(BasePlatformAdapter):
 
         self._mark_connected()
 
+        # Self-announce into the peer registry so other live sessions can
+        # discover + address this one (a discovery hint; trust is still decided
+        # per call at the A2A handshake). Best-effort — must never fail serving.
+        try:
+            from gateway import peer_registry
+            from tools.approval import get_current_session_key
+            self._registry_key = get_current_session_key(default="") or f"a2a:{self.agent_name}"
+            _pub_url = (os.getenv("A2A_PUBLIC_URL") or "").strip() or f"http://{self.host}:{self.port}/"
+            self._registry_payload = {
+                "display_name": str(self.agent_name or ""),
+                "model": str((self._load_global_a2a_config() or {}).get("model", "")),
+                "a2a_url": _pub_url,
+                "capabilities": list(self._advertised_toolsets or []),
+            }
+            peer_registry.announce(self._registry_key, **self._registry_payload)
+        except Exception:
+            logger.debug("A2A: peer_registry announce skipped", exc_info=True)
+
         exposure = "localhost-only" if security.localhost_only() else "REMOTE (bearer auth)"
         logger.info(
             "A2A: serving Agent Card + JSON-RPC on http://%s:%s (%s) as %r; %d routed agent(s)",
@@ -452,6 +470,12 @@ class A2AAdapter(BasePlatformAdapter):
 
     async def disconnect(self) -> None:
         self._mark_disconnected()
+        try:
+            if getattr(self, "_registry_key", ""):
+                from gateway import peer_registry
+                peer_registry.deregister(self._registry_key)
+        except Exception:
+            pass
         self._watchdog_stop.set()
         if self._httpd is not None:
             try:
@@ -479,6 +503,15 @@ class A2AAdapter(BasePlatformAdapter):
                     protocol.metrics.tasks_failed += 1
             except Exception:
                 logger.debug("A2A: watchdog error", exc_info=True)
+            # Re-announce (upsert) so an idle-but-alive session stays live and a
+            # transiently-reaped row self-heals — refreshes heartbeat + owner
+            # stamp and re-creates the row if it was reaped. Best-effort.
+            try:
+                if getattr(self, "_registry_key", "") and getattr(self, "_registry_payload", None):
+                    from gateway import peer_registry
+                    peer_registry.announce(self._registry_key, **self._registry_payload)
+            except Exception:
+                pass
 
     # ── Agent routing + Agent Cards ───────────────────────────────────────
 
