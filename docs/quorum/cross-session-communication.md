@@ -188,12 +188,21 @@ allow-list + call-chain-id / hop-budget guardrails (PR 4).
    self-contained, no new subsystems. Ship first.
 2. **PR 2 — `peer_registry` table** + self-announce on start + TTL/pid reaping +
    registry fallback in `_resolve_peer`.
-3. **PR 3 — `peer_send` tool** + mailbox rows + drain-on-next-turn + reply-as-new-row.
-4. **PR 4 — `security.peer_trust`** config + runtime inbound tool allow-list enforcement +
-   call-chain-id / hop-budget guardrails.
+3. **PR 3 — `peer_mailbox` data layer** — the durable message store (`send` / `drain` /
+   `pending_count` / `purge` + TTL reaping + a per-target cap) in `state.db`. No agent
+   tool and no turn-trigger yet, so a peer-triggered turn cannot happen before its
+   guardrails exist.
+4. **PR 4 — agent integration + trust (bundled)** — the `peer_send` / inbox tools, the
+   best-effort A2A nudge that manufactures the target's turn, drain-on-turn, plus
+   `security.peer_trust` config, the runtime inbound tool allow-list, and the
+   call-chain-id / hop-budget guardrails. Kept together so the sending/receiving surface
+   never ships ahead of its confused-deputy protection.
+
+*(Phasing refinement vs. §5–§9: `peer_send` moved from PR 3 into PR 4 so it lands with
+its trust enforcement, not before it.)*
 
 Each PR: red-team before merge, wait for CI green, merge (branch protection enforces
-green). PRs 1–2 are independently useful even if 3–4 slip.
+green). PRs 1–3 are independently useful even if 4 slips.
 
 ## 11. What we explicitly rejected
 
