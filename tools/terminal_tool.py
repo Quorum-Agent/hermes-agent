@@ -2223,6 +2223,40 @@ def _resolve_command_cwd(
     return get_session_cwd(session_key) or default_cwd
 
 
+def _resolve_watcher_identity(notify_target, gse, fallback_session_key=""):
+    """Resolve the routing identity (``watcher_*`` fields) for a background
+    completion / watch-pattern notification.
+
+    An explicit per-call ``notify_target`` dict — supplied by a sanctioned
+    cross-session caller — wins over the ambient session/process environment.
+    When ``notify_target`` is falsy the identity is read from ``gse``
+    (``get_session_env``) exactly as before. Reading the destination as an
+    ARGUMENT rather than from ``os.environ`` is what lets a caller aim a
+    completion at another live session without mutating shared process-global
+    state — which is what makes concurrent / orchestrator cross-session
+    notification safe (an orchestrator fanning out to N peers no longer
+    overwrites its own routing identity between launches).
+
+    ``session_key`` falls back to ``fallback_session_key`` (the current
+    session's key) when the target does not specify one.
+    """
+    platform_fields = (
+        ("platform", "HERMES_SESSION_PLATFORM"),
+        ("chat_id", "HERMES_SESSION_CHAT_ID"),
+        ("thread_id", "HERMES_SESSION_THREAD_ID"),
+        ("user_id", "HERMES_SESSION_USER_ID"),
+        ("user_name", "HERMES_SESSION_USER_NAME"),
+        ("message_id", "HERMES_SESSION_MESSAGE_ID"),
+    )
+    if notify_target:
+        ident = {key: str(notify_target.get(key, "") or "") for key, _ in platform_fields}
+        ident["session_key"] = str(notify_target.get("session_key", "") or "") or fallback_session_key
+    else:
+        ident = {key: gse(env, "") for key, env in platform_fields}
+        ident["session_key"] = fallback_session_key
+    return ident
+
+
 def terminal_tool(
     command: str,
     background: bool = False,
@@ -2234,6 +2268,7 @@ def terminal_tool(
     pty: bool = False,
     notify_on_complete: bool = False,
     watch_patterns: Optional[List[str]] = None,
+    notify_target: Optional[dict] = None,
 ) -> str:
     """
     Execute a command in the configured terminal environment.
@@ -2249,6 +2284,7 @@ def terminal_tool(
         pty: If True, use pseudo-terminal for interactive CLI tools (local backend only)
         notify_on_complete: If True and background=True, you'll be notified exactly once when the process exits. The right choice for almost every long task. MUTUALLY EXCLUSIVE with watch_patterns.
         watch_patterns: List of strings to watch for in background output. HARD rate limit: 1 notification per 15s per process. After 3 strike windows in a row, watch_patterns is disabled and the session is auto-promoted to notify_on_complete. Use ONLY for rare, one-shot mid-process signals on long-lived processes (server readiness, migration-done markers). NEVER use in loops/batch jobs — error patterns there will hit the strike limit and get disabled. MUTUALLY EXCLUSIVE with notify_on_complete — set one, not both.
+        notify_target: Internal only (not exposed to the model API). Explicit per-call routing identity for the completion/watch notification — a dict of {platform, chat_id, thread_id, user_id, user_name, message_id, session_key}. When set it overrides the ambient session env, so a completion can be aimed at ANOTHER live session (cross-session coordination) without mutating process-global os.environ. None => route to the current session, as before.
 
     Returns:
         str: JSON string with output, exit_code, and error fields
@@ -2822,19 +2858,21 @@ def terminal_tool(
                             proc_session.id,
                         )
                     else:
-                        _gw_platform = _gse("HERMES_SESSION_PLATFORM", "")
+                        # Notify/watch routing identity. An explicit per-call
+                        # ``notify_target`` (set by a sanctioned cross-session
+                        # caller) wins over the ambient session/process env, so a
+                        # completion can be aimed at ANOTHER live session without
+                        # mutating shared os.environ — concurrency- and
+                        # orchestrator-safe. None => current session, as before.
+                        _wid = _resolve_watcher_identity(notify_target, _gse, session_key)
+                        _gw_platform = _wid["platform"]
                         if _gw_platform:
-                            _gw_chat_id = _gse("HERMES_SESSION_CHAT_ID", "")
-                            _gw_thread_id = _gse("HERMES_SESSION_THREAD_ID", "")
-                            _gw_user_id = _gse("HERMES_SESSION_USER_ID", "")
-                            _gw_user_name = _gse("HERMES_SESSION_USER_NAME", "")
-                            _gw_message_id = _gse("HERMES_SESSION_MESSAGE_ID", "")
                             proc_session.watcher_platform = _gw_platform
-                            proc_session.watcher_chat_id = _gw_chat_id
-                            proc_session.watcher_user_id = _gw_user_id
-                            proc_session.watcher_user_name = _gw_user_name
-                            proc_session.watcher_thread_id = _gw_thread_id
-                            proc_session.watcher_message_id = _gw_message_id
+                            proc_session.watcher_chat_id = _wid["chat_id"]
+                            proc_session.watcher_user_id = _wid["user_id"]
+                            proc_session.watcher_user_name = _wid["user_name"]
+                            proc_session.watcher_thread_id = _wid["thread_id"]
+                            proc_session.watcher_message_id = _wid["message_id"]
 
                 # Mutual exclusion: if both notify_on_complete and watch_patterns
                 # are set, drop watch_patterns. The combination produces duplicate
@@ -2865,7 +2903,7 @@ def terminal_tool(
                         process_registry.pending_watchers.append({
                             "session_id": proc_session.id,
                             "check_interval": 5,
-                            "session_key": session_key,
+                            "session_key": _wid["session_key"],
                             "platform": proc_session.watcher_platform,
                             "chat_id": proc_session.watcher_chat_id,
                             "user_id": proc_session.watcher_user_id,

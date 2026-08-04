@@ -78,20 +78,25 @@ A new `peer_send(target?, capability?, message)` tool — **addressing optional*
    trigger back to the sender** — fire-and-forget, never a blocking return. This
    structurally avoids the actor "ask-cycle" deadlock.
 
-## 5. The `notify_session_key` fix (PR 1 — unanimous, low-risk)
+## 5. The `notify_target` fix (PR 1 — unanimous, low-risk) ✅ shipped
 
-Today a background process reads its completion-notification target from **process-global
-env**: `tools/terminal_tool.py:295` —
-`session_key = get_session_env("HERMES_SESSION_KEY", "")`. Concurrent sends clobber each
-other's identity, and an orchestrator overwrites *its own* routing — the exact footgun
-`gateway/session_context.py` introduced ContextVars to avoid.
+The real notify-routing site is the watcher-stamping block in `tools/terminal_tool.py`
+(~line 2825): a background process launched with `notify_on_complete` reads the
+destination's **platform routing identity** from the ambient session env
+(`get_session_env("HERMES_SESSION_PLATFORM" / "…CHAT_ID" / "…THREAD_ID" / …)`) and stamps
+it onto the process's `watcher_*` fields plus the `pending_watcher` the gateway delivers
+on. (The `HERMES_SESSION_KEY` read at :295 is unrelated — it scopes the sudo-password
+cache. The original design note mis-cited it.) Because that identity comes from
+process-global env, concurrent launches share it and an orchestrator overwrites *its own*
+routing between sends.
 
-**Fix:** add an optional explicit `notify_session_key` parameter to the terminal
-background-launch API (`_run_background_process` / the `terminal(...)` tool surface).
-When provided, it is used verbatim as the completion-delivery target instead of the env
-read. Per-call, concurrency-safe, orchestrator-safe. Small and self-contained — no new
-subsystems — and independently endorsed by all nine reviewers, so it ships first, ahead
-of the mailbox and registry.
+**Fix (shipped):** a pure `_resolve_watcher_identity(notify_target, gse, session_key)`
+helper plus an **internal-only** `notify_target` parameter on `terminal_tool` — a dict of
+`{platform, chat_id, thread_id, user_id, user_name, message_id, session_key}`. When set it
+wins over the env; when `None`, behavior is unchanged. It is **not** model-settable: the
+tool handler (`_handle_terminal`) allow-lists model args field-by-field, so only sanctioned
+internal callers (the future `peer_send`, behind the §7 trust checks) can aim a completion
+at another session. Per-call, concurrency- and orchestrator-safe; no new subsystems.
 
 ## 6. `peer_registry` table (in `state.db`)
 
