@@ -123,6 +123,9 @@ def test_directive_budget_guard_shapes():
     # The deny-shaped guard, in isolation: object and dict shapes both honored;
     # blank/absent subject or policy_id, and a bool/sub-1/non-int budget, ⇒ None.
     assert so._directive_budget(_make_directive("subj", 5)) == 5
+    # object source with a sub-1 budget is rejected too — the `budget < 1` check is
+    # after the dict/object split, so it applies to both shapes (not just dicts).
+    assert so._directive_budget(_make_directive("subj", 0)) is None
     assert so._directive_budget(
         {"subject": "subj", "policy_id": "p", "compute_budget": 5}) == 5
     assert so._directive_budget(
@@ -384,10 +387,11 @@ def test_empty_session_returns_default(home):
     assert so.bounded_iterations("", 10) == 10
 
 
-@pytest.mark.parametrize("bad_default", ["x", True, None, 3.5])
-def test_non_int_default_returned_unchanged(home, bad_default):
-    # The caller passes agent.max_iterations; if it is ever not a plain int, leave
-    # it exactly as-is rather than inventing a budget.
+@pytest.mark.parametrize("bad_default", ["x", True, None, 3.5, 0, -5])
+def test_out_of_contract_default_returned_unchanged(home, bad_default):
+    # The caller passes agent.max_iterations; if it is ever not a positive plain int
+    # (non-int, bool, zero, or negative), leave it exactly as-is rather than inventing
+    # or clamping a budget — a bad host value is the host's bug, not ours to mask.
     assert so.bounded_iterations("s", bad_default) is bad_default
 
 
@@ -417,6 +421,14 @@ def test_call_site_precedes_budget_rebuild():
     assert rebuild - call <= 12
     between = lines[call + 1:rebuild]
     assert not any("agent.max_iterations =" in ln for ln in between)
+    # A3 also depends on the consumer running BEFORE pre_llm_call opens THIS turn's
+    # window — otherwise finalize-on-read would close and read turn N's OWN window (a
+    # self-read), not turn N-1's. Adjacency to the rebuild alone does not pin that;
+    # a reorder of the whole block past the window-open would keep the asserts above
+    # green. Pin the ordering explicitly: the consumer call precedes the pre_llm_call
+    # dispatch (grok coding-F1).
+    pre_llm_call = next(k for k, ln in enumerate(lines) if '"pre_llm_call"' in ln)
+    assert call < pre_llm_call
 
 
 # --- no leak, no crash -------------------------------------------------------

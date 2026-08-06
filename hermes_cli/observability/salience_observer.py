@@ -627,15 +627,21 @@ def bounded_iterations(session_id: str, default: int) -> int:
 
     Fails OPEN to ``default`` on EVERYTHING: subsystem off, consumption kill switch
     off, no prior directive, a deny-shaped directive, or any error. ``default`` is
-    the host's positive iteration budget; a non-positive ``default`` is out of
-    contract (the consumer still never returns < 1 when a directive is present). In
-    the v0 config the directive echoes the operator's own budget (pinned window +
+    the host's positive iteration budget; a non-int / bool / non-positive ``default``
+    is out of contract and returned UNTOUCHED (the consumer never manufactures or
+    clamps a budget for a bad host value). Given a valid positive ``default``, the
+    returned budget is never < 1. In the v0 config the directive echoes the
+    operator's own budget (pinned window +
     ATTENTION unmapped), so this is behavior-preserving until a future change widens
     the policy window and maps a budget-moving facet (its own review). Consumer, not
     decider (Finding D): the returned value is the recorded, policy-clamped budget
     applied verbatim — never re-clamped against ``default`` or config, up OR down."""
-    if not isinstance(default, int) or isinstance(default, bool):
-        return default  # nothing sane to compare against; leave the caller's value
+    if not isinstance(default, int) or isinstance(default, bool) or default < 1:
+        # Out of contract (non-int / bool / non-positive): return it UNTOUCHED and do
+        # not finalize-on-read. The consumer never manufactures or clamps a budget
+        # for a bad host value — a max_iterations < 1 is the host's own bug, not ours
+        # to silently paper over with an operator floor.
+        return default
     try:
         if not _consume_enabled() or not session_id:
             return default

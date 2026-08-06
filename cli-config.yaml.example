@@ -1707,6 +1707,10 @@ updates:
 #   configured budget, so consumption is behavior-preserving — it wires the path
 #   end to end without yet changing what the agent does. Set it false to keep the
 #   audit record while leaving the iteration budget entirely operator-controlled.
+#   Caveat on resume: the first turn of a resumed session reapplies the LAST
+#   RECORDED budget for that session, which can differ from the current operator
+#   setting (e.g. if you changed max_iterations between runs) until the next turn
+#   is finalized.
 #
 # Notes:
 # * Only active in the Quorum Edition; a no-op otherwise.
