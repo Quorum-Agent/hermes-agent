@@ -16,9 +16,13 @@ Hard guarantees, by construction:
   never breaks the turn. The one *consumer* — ``bounded_iterations`` (PR-H2, the
   compute-budget knob) — is a separate, explicitly-gated entry point with its own
   kill switch (``salience.consume_compute``); it applies the recorded decision and
-  fails open to the caller's value, and in the v0 config it echoes the operator's
-  own budget (ATTENTION is unmapped), so it is behavior-preserving by construction
-  until a facet mapping that moves the budget lands in its own reviewed change.
+  fails open to the caller's value. It is wired live but INERT in v0: the produce
+  policy pins ``min_budget == max_budget == operator budget`` and ATTENTION is
+  unmapped, so the directive always echoes the operator's own budget — the consumer
+  is behavior-preserving by construction. Moving the budget requires a future,
+  separately-reviewed change that BOTH maps a budget-moving facet AND widens the
+  policy window (``max_budget > min_budget``); a facet mapping alone, against a
+  pinned window, cannot move it.
 * **Fail-closed attribution.** A signal is recorded only against an *open window
   with a matching turn id*. No resolvable ``session_id``/``turn_id`` ⇒ no window,
   no signal. Activity that can't be correlated to a turn is dropped, never guessed.
@@ -328,7 +332,8 @@ def _close_locked(window: _Window, budget: "int | None" = None) -> None:
             window.subject,           # subject (matches the signals)
             (),                       # granted_capabilities: NONE (P-01)
             budget,                   # min_budget (A4: operator floor)
-            budget,                   # max_budget (v0: pinned; PR-H2 widens)
+            budget,                   # max_budget (v0: pinned to the floor — widening
+                                      # the window is a future behavior-changing change)
             0,                        # min_verification
             3,                        # max_verification (FULL ceiling/default)
             "semantic",               # max_retention salience may buy
@@ -446,9 +451,10 @@ def _map_api_error(kwargs: dict, subject: str) -> list:
     return [_signal(subject, Facet.VERIFICATION, influence, provenance)]
 
 
-# --- consumer: compute budget (PR-H2, the first GOVERNED knob) ---------------
+# --- consumer: compute budget (PR-H2, the first governed knob) ----------------
 #
-# This is the ONLY behavior-changing path in the module. Everything above records;
+# The only path WIRED to change behavior (inert in v0 — the directive echoes the
+# operator budget; see the module docstring). Everything above records;
 # `bounded_iterations` READS the recorded directive and applies its compute_budget
 # to the host's per-turn iteration budget. It is a consumer, not a decider
 # (Finding D): it applies the policy-clamped value verbatim — no re-clamp, no
@@ -468,12 +474,19 @@ def _consume_enabled() -> bool:
 
 
 def _ensure_template_valid() -> None:
-    """Validate the v0 policy template through ``verify_policy`` once, and log
-    LOUDLY if it fails. A rejected template (e.g. a future config-driven budget set
-    to a bad value) makes every window hard-deny — which the deny-shaped guard turns
-    into the operator default, so it never bricks the agent, but it silently governs
-    nothing. This surfaces that. Caller must hold ``_LOCK`` (reads the operator
-    budget cache)."""
+    """One-time WELL-FORMEDNESS check of the hardcoded v0 policy template, run on
+    first consume, logging LOUDLY if it fails.
+
+    Honest scope: this is NOT config validation. No template knob is config-wired
+    yet (only ``enabled`` / ``consume_compute`` exist), and the template is built
+    from in-module constants and self-signed with ``_POLICY_KEY``, so today
+    ``verify_policy`` can only fail if those CONSTANTS are edited into an incoherent
+    shape (e.g. ``max_retention`` outside the ladder, ``min > max``) — a construction
+    regression. It is a cheap tripwire for that, and the seam where real
+    config-driven template validation will live once knobs are plumbed. Either way a
+    rejected template can never brick the agent: it makes every window hard-deny,
+    which the deny-shaped guard turns into the operator default. Caller holds
+    ``_LOCK`` (reads the operator budget cache)."""
     global _TEMPLATE_VALIDATED
     if _TEMPLATE_VALIDATED is not None:
         return
@@ -488,8 +501,9 @@ def _ensure_template_valid() -> None:
         _TEMPLATE_VALIDATED = False
     if not _TEMPLATE_VALIDATED:
         logger.error(
-            "salience: v0 policy template failed verify_policy; the compute-budget "
-            "consumer will fall back to the operator default and govern nothing"
+            "salience: v0 policy template failed verify_policy — a construction "
+            "regression; the compute-budget consumer falls back to the operator "
+            "default and governs nothing"
         )
 
 
@@ -521,12 +535,24 @@ def _directive_budget(source: Any) -> "int | None":
 
 
 def _budget_from_disk(session_id: str) -> "int | None":
-    """Restart fallback: recover the last recorded directive's budget from the
-    session's JSONL when the in-memory cache is empty (fresh process over an
-    existing session). Constructing the bus replays AND verifies the whole chain,
-    raising on a corrupt tail (caught by the caller ⇒ default) — so the value read
-    here comes from an integrity-checked file, never an unverified tail. Returns
-    None (⇒ default) when there is no file or no directive. Caller holds ``_LOCK``."""
+    """Cold-restart fallback: recover the last recorded budget from the session
+    JSONL when the in-memory caches are empty (a fresh process over an existing
+    session).
+
+    Runs ONLY when no bus is cached for this session. In-process, the authority is
+    ``_LAST_DIRECTIVE``; if a bus is already cached but ``_LAST_DIRECTIVE`` is empty
+    the last close FAILED, and reading a stale on-disk directive would both bypass
+    the replay verification (a cached ``_bus_for`` does not re-verify the current
+    file) and apply a 2-turns-stale budget — so we return None (⇒ default) instead.
+
+    On the cold path, constructing the bus replays AND verifies the whole chain,
+    raising on a corrupt/tampered tail (caught by the caller ⇒ default). The value
+    is then taken from the bus's VERIFIED ``directives_for`` store — never a second
+    independent parse of the file; ``directives_for`` is subject-keyed, and the
+    subject comes from the now-verified file's last directive line. Caller holds
+    ``_LOCK``."""
+    if session_id in _BUSES:
+        return None
     from pathlib import Path
 
     from hermes_constants import get_hermes_home
@@ -534,8 +560,8 @@ def _budget_from_disk(session_id: str) -> "int | None":
     path = Path(get_hermes_home()) / "salience" / (_session_hash(session_id) + ".jsonl")
     if not path.exists():
         return None
-    _bus_for(session_id)  # replay + verify the chain (raises on a corrupt tail)
-    last = None
+    bus = _bus_for(session_id)  # constructs ⇒ replay + verify (raises on a corrupt chain)
+    last_subject = None
     with open(path, encoding="utf-8") as fh:
         for raw in fh:
             line = raw.strip()
@@ -543,8 +569,11 @@ def _budget_from_disk(session_id: str) -> "int | None":
                 continue
             entry = json.loads(line)
             if entry.get("kind") == "directive":
-                last = entry.get("payload")
-    return _directive_budget(last)
+                last_subject = (entry.get("payload") or {}).get("subject")
+    if not last_subject:
+        return None
+    directives = bus.directives_for(last_subject)  # verified copies, oldest first
+    return _directive_budget(directives[-1]) if directives else None
 
 
 def _resolve_bounded(session_id: str, default: int) -> "int | None":
@@ -555,7 +584,11 @@ def _resolve_bounded(session_id: str, default: int) -> "int | None":
         _ensure_template_valid()
         # Policy floor for the finalize-on-read close = THIS turn's resolved budget
         # (A4) when it is a sane positive int; otherwise the configured operator
-        # budget (_operator_budget is only safe to read under _LOCK).
+        # budget (_operator_budget is only safe to read under _LOCK). Note: closing
+        # turn N-1's window here floors its DURABLE directive at turn N's budget, so
+        # if the operator budget changed between turns the record is floored to the
+        # reader's value — harmless (the value is consumed immediately and v0 echoes
+        # the operator budget); tightening the audit provenance is deferred.
         floor = default if (isinstance(default, int) and not isinstance(default, bool)
                             and default > 0) else _operator_budget()
         # Finalize-on-read (A3): close the PRIOR turn's still-open window NOW, at the
@@ -573,15 +606,17 @@ def _resolve_bounded(session_id: str, default: int) -> "int | None":
 
 def bounded_iterations(session_id: str, default: int) -> int:
     """Bound this turn's iteration budget by the directive recorded for the PRIOR
-    turn — the first governed knob. Called once at turn start, immediately before
-    the host rebuilds its ``IterationBudget`` (between-turn only, Finding F).
+    turn — the first governed knob (wired live; inert in v0). Called once at turn
+    start, immediately before the host rebuilds its ``IterationBudget`` (between-turn
+    only, Finding F).
 
     Fails OPEN to ``default`` on EVERYTHING: subsystem off, consumption kill switch
     off, no prior directive, a deny-shaped directive, or any error. In the v0 config
-    the directive echoes the operator's own budget (ATTENTION unmapped), so this is
-    behavior-preserving until a budget-moving facet mapping lands in its own review.
-    Consumer, not decider (Finding D): the returned value is the recorded,
-    policy-clamped budget applied verbatim — never re-clamped against config."""
+    the directive echoes the operator's own budget (pinned window + ATTENTION
+    unmapped), so this is behavior-preserving until a future change widens the policy
+    window and maps a budget-moving facet (its own review). Consumer, not decider
+    (Finding D): the returned value is the recorded, policy-clamped budget applied
+    verbatim — never re-clamped against ``default`` or config, up OR down."""
     if not isinstance(default, int) or isinstance(default, bool):
         return default  # nothing sane to compare against; leave the caller's value
     try:

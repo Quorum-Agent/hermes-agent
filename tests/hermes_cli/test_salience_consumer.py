@@ -21,6 +21,7 @@ Harness mirrors test_salience_observer.py. The shared conftest disables the gate
 suite-wide (the subsystem is default-ON in the product); these tests opt back in.
 """
 
+import json
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,15 @@ def test_no_reclamp_directive_below_default(home):
     assert so.bounded_iterations("s", 100) == 3
 
 
+def test_no_reclamp_directive_above_default(home):
+    # The consumer applies the recorded budget VERBATIM even when it EXCEEDS the
+    # caller's default — salience must be able to RAISE iterations, not only lower
+    # them. A downward clamp `min(budget, default)` — the natural misreading of a
+    # function named `bounded_iterations` — would silently cap this at 10 and reds.
+    so._LAST_DIRECTIVE["s"] = _make_directive(so._subject("s", "u"), 40)
+    assert so.bounded_iterations("s", 10) == 40
+
+
 # --- deny-shaped ⇒ default (A5) ----------------------------------------------
 
 def test_hard_deny_directive_falls_back_to_default(home):
@@ -148,8 +158,11 @@ def test_three_turns_read_prior_not_stale(home):
     # Model the real cadence: each turn calls bounded_iterations FIRST (line ~491),
     # THEN pre_llm_call opens that turn's window (line ~1054). Distinct per-turn
     # defaults make the A3 property observable: turn 3 must read turn 2's window
-    # (30), not the stale turn-1 directive (20). Deleting finalize-on-read makes
-    # turn 3 return 20 and reds this.
+    # (30), not the stale turn-1 directive. Deleting finalize-on-read makes turn 3
+    # read u1 — which _open("u2")'s rollover closed at the operator budget (25, the
+    # _DEFAULT_BUDGET under this fixture's config) — so turn 3 returns 25, not 30,
+    # and reds. The directives_for(u1)==20 assertion also pins the A4 floor binding
+    # (a real finalize-on-read closes u1 at the caller default 20, not operator 25).
     applied1 = so.bounded_iterations("s", 10)   # no prior turn
     _open("s", "u1"); _record_write("s", "u1")
 
@@ -202,6 +215,54 @@ def test_restart_with_no_file_returns_default(monkeypatch, tmp_path):
     # nothing ever produced for this session ⇒ no file ⇒ default, no bus created
     assert so.bounded_iterations("never-seen", 10) == 10
     assert not (Path(tmp_path) / "salience").exists()
+
+
+def test_restart_nontail_tamper_fails_closed(monkeypatch, tmp_path):
+    # The integrity guarantee must come from the bus's replay-verify, NOT from the
+    # observer's own json.loads. Build a two-directive file and corrupt a NON-TAIL
+    # directive's hash with still-VALID JSON: only SalienceBus._replay's digest/chain
+    # check can detect that (the observer's own parse reads it fine). Replay raises on
+    # open ⇒ consumer falls back to default. Neuter the replay integrity check and the
+    # tampered file is accepted, recovering the tail directive's budget (7) ⇒ this reds.
+    _use_config(monkeypatch, tmp_path,
+                {"agent": {"max_iterations": 7}, "salience": {"enabled": True}}, gate=True)
+    _open("s", "u1")
+    _record_write("s", "u1")
+    _open("s", "u2")                              # rollover closes u1 ⇒ directive(u1) persisted
+    _record_write("s", "u2")
+    so._close_session({"session_id": "s"})        # closes u2 ⇒ directive(u2) persisted (the tail)
+
+    path = _bus_file(tmp_path, "s")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    idx = next(i for i, ln in enumerate(lines) if json.loads(ln).get("kind") == "directive")
+    assert idx < len(lines) - 1                   # confirm it is genuinely non-tail
+    entry = json.loads(lines[idx])
+    entry["hash"] = "0" * 64                       # valid JSON, wrong hash
+    lines[idx] = json.dumps(entry, sort_keys=True)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    so._reset_for_tests()
+    assert so.bounded_iterations("s", 10) == 10    # replay raises ⇒ fail-closed to default
+
+
+def test_restart_fallback_skipped_when_bus_cached(monkeypatch, tmp_path):
+    # Guard: the disk fallback runs only on a COLD restart (no cached bus). If a bus
+    # is cached in-process but _LAST_DIRECTIVE is empty (a close that failed), reading
+    # the stale on-disk directive would both skip replay re-verification (a cached
+    # _bus_for does not re-verify) and apply a stale budget — so the fallback must be
+    # skipped and default returned. Dropping the `session_id in _BUSES` guard would
+    # read the persisted 7 and red this.
+    _use_config(monkeypatch, tmp_path,
+                {"agent": {"max_iterations": 7}, "salience": {"enabled": True}}, gate=True)
+    _open("s", "u")
+    _record_write("s", "u")
+    so._close_session({"session_id": "s"})         # directive(7) persisted
+    assert _bus_file(tmp_path, "s").exists()
+
+    so._reset_for_tests()
+    so._bus_for("s")                               # simulate: a bus cached, no successful close
+    assert "s" in so._BUSES and "s" not in so._LAST_DIRECTIVE
+    assert so.bounded_iterations("s", 10) == 10    # guard ⇒ no disk read, default
 
 
 # --- gating ------------------------------------------------------------------
@@ -289,14 +350,23 @@ def test_consumer_cache_freed_on_session_close(home):
     assert "s" not in so._BUSES
 
 
-def test_template_validation_flagged_but_consumption_survives(home, monkeypatch):
-    # verify_policy failing on the probe must be surfaced (loud log, flag False) but
-    # must NOT break consumption — the real close still issues a valid policy through
-    # the interpreter's own verify_policy (not the module-level name patched here).
+def test_template_validation_flagged_but_consumption_survives(home, monkeypatch, caplog):
+    import logging
+
+    # Force the well-formedness probe to fail. The real finalize-on-read close must
+    # still succeed (it issues its policy through the INTERPRETER's own verify_policy,
+    # not the module-level name patched here), so consumption is unaffected — while
+    # the failure is surfaced loudly.
     monkeypatch.setattr(so, "verify_policy", lambda *a, **k: False, raising=False)
-    so._LAST_DIRECTIVE["s"] = _make_directive(so._subject("s", "u"), 7)
-    assert so.bounded_iterations("s", 10) == 7
-    assert so._TEMPLATE_VALIDATED is False
+    _open("s", "u")
+    _record_write("s", "u")
+    with caplog.at_level(logging.ERROR, logger="hermes_cli.observability.salience_observer"):
+        applied = so.bounded_iterations("s", 10)
+    assert applied == 10                      # real close still produced a usable directive
+    assert so._WINDOWS["s"].closed is True    # finalize-on-read genuinely ran
+    assert so._TEMPLATE_VALIDATED is False    # probe recorded the failure
+    assert any("policy template failed verify_policy" in r.getMessage()
+               for r in caplog.records)       # …and did so loudly
 
 
 def test_bounded_iterations_never_raises_on_broken_home(home, monkeypatch):
