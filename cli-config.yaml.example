@@ -1689,21 +1689,27 @@ updates:
 
 # =============================================================================
 # Salience (Quorum Edition) — the SalienceOS judgment system, wired in as a
-# TEST RIG. Produce-only in this build: an observer watches real activity
-# (tool calls, API errors, approvals) and records bounded salience signals and
-# a per-turn directive on a per-session audit log under
-# <hermes_home>/salience/. It NEVER changes what the agent does.
+# TEST RIG. An observer watches real activity (tool calls, API errors, approvals)
+# and records bounded salience signals and a per-turn directive on a per-session
+# audit log under <hermes_home>/salience/.
 # =============================================================================
-# Default is ON when this is the Quorum Edition. To turn it off entirely
-# (the kill switch), set:
+# Two independent switches, both default ON in the Quorum Edition:
 #
 # salience:
-#   enabled: false
+#   enabled: false          # master kill switch — turns the whole subsystem off
+#   consume_compute: false  # keep recording, but stop the ONE governed knob below
+#
+# * `enabled` (default true) is the master switch. Off ⇒ nothing is recorded and
+#   nothing is consumed; a completely inert, zero-cost path.
+# * `consume_compute` (default true) governs the ONLY behavior-changing consumer:
+#   the recorded compute budget bounds the next turn's iteration budget, applied
+#   between turns. In this v0 config the directive echoes the operator's own
+#   configured budget, so consumption is behavior-preserving — it wires the path
+#   end to end without yet changing what the agent does. Set it false to keep the
+#   audit record while leaving the iteration budget entirely operator-controlled.
 #
 # Notes:
 # * Only active in the Quorum Edition; a no-op otherwise.
 # * The audit log stores only bounded reference tokens (ids, status codes,
 #   content hashes) — never prompts, tool args, results, or chain-of-thought —
 #   and the session id is stored hashed, never in the clear.
-# * consuming a directive to govern a real knob (compute budget) is a separate,
-#   later change and will document its own `salience.consume_compute` switch.

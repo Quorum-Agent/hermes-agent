@@ -488,6 +488,20 @@ def build_turn_context(
         agent._compression_warning = None  # send once
 
     # NOTE: _turns_since_memory and _iters_since_skill are NOT reset here.
+    # Salience consumer (PR-H2, first governed knob): let the directive the
+    # judgment system recorded for the PRIOR turn bound this turn's iteration
+    # budget — between-turn only (Finding F), and one choke point covering every
+    # surface (CLI/TUI/gateway/desktop) since the next line rebuilds the budget
+    # from max_iterations. Fails open: the observer never raises and returns the
+    # operator's own value unchanged when the subsystem is off, kill-switched, or
+    # has no prior directive, so a stock or disabled build is a no-op here.
+    try:
+        from hermes_cli.observability import salience_observer as _salience_observer
+        agent.max_iterations = _salience_observer.bounded_iterations(
+            agent.session_id or "", default=agent.max_iterations
+        )
+    except Exception:
+        logger.debug("salience consumer skipped", exc_info=True)
     agent.iteration_budget = IterationBudget(agent.max_iterations)
 
     # Log conversation turn start for debugging/observability.
