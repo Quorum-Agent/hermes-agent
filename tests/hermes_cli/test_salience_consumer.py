@@ -154,6 +154,39 @@ def test_finalize_on_read_closes_prior_window(home):
     assert applied == 10
 
 
+def test_second_read_returns_cached_directive_not_default(home):
+    # In v0 a live finalize-on-read returns the operator's own default, so no single
+    # live call can distinguish "read the cached directive" from "returned default".
+    # A SECOND read with a DIFFERENT default does: the window is already closed, so
+    # the consumer must return the CACHED directive's budget (the first close's floor
+    # 20), not the new default 99. Removing the `_LAST_DIRECTIVE[...] = directive`
+    # write in _close_locked drops the second read to default via _budget_from_disk
+    # (bus warm ⇒ None ⇒ 99) and reds — the mutation the three-turn test cannot see.
+    _open("s", "u1")
+    _record_write("s", "u1")
+    first = so.bounded_iterations("s", 20)     # closes u1 at floor 20, caches budget 20
+    assert first == 20
+    second = so.bounded_iterations("s", 99)    # u1 already closed ⇒ read the cache (20)
+    assert second == 20
+
+
+def test_failed_close_fails_open_not_stale(home, monkeypatch):
+    # A prior turn's directive is cached (budget 7). This turn's window is open and
+    # its finalize-on-read close FAILS (interpret raises). The consumer must fail
+    # OPEN to default — NOT apply the stale prior directive (7) as this turn's
+    # decision (a 2-turns-stale budget). Dropping the `_LAST_DIRECTIVE.pop` in
+    # _close_locked's except leaves 7 cached and reds.
+    so._LAST_DIRECTIVE["s"] = _make_directive(so._subject("s", "u1"), 7)
+    _open("s", "u2")
+    _record_write("s", "u2")                   # caches the bus for "s"
+
+    def _boom(*a, **k):
+        raise RuntimeError("finalize failed")
+
+    monkeypatch.setattr(so, "interpret", _boom, raising=False)
+    assert so.bounded_iterations("s", 10) == 10   # fail-open, not the stale 7
+
+
 def test_three_turns_read_prior_not_stale(home):
     # Model the real cadence: each turn calls bounded_iterations FIRST (line ~491),
     # THEN pre_llm_call opens that turn's window (line ~1054). Distinct per-turn
@@ -193,6 +226,24 @@ def test_restart_recovers_budget_from_disk(monkeypatch, tmp_path):
 
     so._reset_for_tests()                          # restart: in-memory gone, file remains
     assert so.bounded_iterations("s", 10) == 7     # recovered from the verified file
+
+
+def test_cold_recovery_is_cached_for_second_read(monkeypatch, tmp_path):
+    # The cold disk path runs only once per restart (a warm _BUSES short-circuits
+    # it). The verified recovery must be promoted to the in-memory cache so a second
+    # read before the next close still returns it — a turn aborted before opening its
+    # window must not silently drop the recovered budget back to default (grok-F2).
+    _use_config(monkeypatch, tmp_path,
+                {"agent": {"max_iterations": 7}, "salience": {"enabled": True}}, gate=True)
+    _open("s", "u")
+    _record_write("s", "u")
+    so._close_session({"session_id": "s"})         # directive(7) persisted
+    so._reset_for_tests()
+
+    assert so.bounded_iterations("s", 10) == 7      # cold recovery
+    # second read, no window opened/closed in between: without the promote the
+    # warm-_BUSES guard drops it to default (10); with it, the cache still holds 7.
+    assert so.bounded_iterations("s", 10) == 7
 
 
 def test_restart_corrupt_tail_fails_closed_to_default(monkeypatch, tmp_path):

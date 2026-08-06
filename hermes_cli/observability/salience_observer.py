@@ -46,7 +46,6 @@ zero-cost path and this observer is completely inert.
 from __future__ import annotations
 
 import hashlib
-import json
 import logging
 import os
 import threading
@@ -350,6 +349,10 @@ def _close_locked(window: _Window, budget: "int | None" = None) -> None:
         # so a half-failed close never leaves a phantom directive to be consumed.
         _LAST_DIRECTIVE[window.session_id] = directive
     except (Exception, SystemExit):  # consistent with the gate + dispatch containment
+        # A failed finalize must fail OPEN, not leave the PRIOR turn's cached
+        # directive to be consumed as this turn's decision (that would apply a
+        # 2-turns-stale budget). Drop it so the consumer falls back to default.
+        _LAST_DIRECTIVE.pop(window.session_id, None)
         logger.warning("salience observer: window finalize failed", exc_info=True)
 
 
@@ -546,11 +549,12 @@ def _budget_from_disk(session_id: str) -> "int | None":
     file) and apply a 2-turns-stale budget — so we return None (⇒ default) instead.
 
     On the cold path, constructing the bus replays AND verifies the whole chain,
-    raising on a corrupt/tampered tail (caught by the caller ⇒ default). The value
-    is then taken from the bus's VERIFIED ``directives_for`` store — never a second
-    independent parse of the file; ``directives_for`` is subject-keyed, and the
-    subject comes from the now-verified file's last directive line. Caller holds
-    ``_LOCK``."""
+    raising on a corrupt/tampered tail (caught by the caller ⇒ default). The last
+    directive is then read from the bus's VERIFIED in-memory store — no second
+    independent parse of the file (which would be redundant with the replay and
+    could pick a stale subject if the file were truncated between the two reads),
+    and no reliance on the subject-keyed public accessor we cannot key without a
+    turn id. Caller holds ``_LOCK``."""
     if session_id in _BUSES:
         return None
     from pathlib import Path
@@ -561,19 +565,20 @@ def _budget_from_disk(session_id: str) -> "int | None":
     if not path.exists():
         return None
     bus = _bus_for(session_id)  # constructs ⇒ replay + verify (raises on a corrupt chain)
-    last_subject = None
-    with open(path, encoding="utf-8") as fh:
-        for raw in fh:
-            line = raw.strip()
-            if not line:
-                continue
-            entry = json.loads(line)
-            if entry.get("kind") == "directive":
-                last_subject = (entry.get("payload") or {}).get("subject")
-    if not last_subject:
+    # The verified, in-order directive store the replay just built: (hash, payload)
+    # tuples, oldest first. getattr keeps us fail-open if the vendored bus ever
+    # renames it (⇒ None ⇒ default). No public accessor serves "the last directive
+    # regardless of subject", so we read the store the replay verified.
+    directives = getattr(bus, "_directives", None)
+    if not directives:
         return None
-    directives = bus.directives_for(last_subject)  # verified copies, oldest first
-    return _directive_budget(directives[-1]) if directives else None
+    payload = directives[-1][1]
+    # Promote the verified recovery into the in-memory cache: the cold disk path
+    # runs only once per restart (a warm _BUSES short-circuits it), so without this a
+    # second read before the next close would drop the recovered value to default
+    # (grok-F2).
+    _LAST_DIRECTIVE[session_id] = payload
+    return _directive_budget(payload)
 
 
 def _resolve_bounded(session_id: str, default: int) -> "int | None":

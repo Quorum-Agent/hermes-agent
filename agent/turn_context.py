@@ -492,9 +492,10 @@ def build_turn_context(
     # judgment system recorded for the PRIOR turn bound this turn's iteration
     # budget — between-turn only (Finding F), and one choke point covering every
     # surface (CLI/TUI/gateway/desktop) since the next line rebuilds the budget
-    # from max_iterations. Fails open: the observer never raises and returns the
-    # operator's own value unchanged when the subsystem is off, kill-switched, or
-    # has no prior directive, so a stock or disabled build is a no-op here.
+    # from max_iterations. Fails open: the consumer self-contains Exception and
+    # SystemExit and returns the operator's own value unchanged when the subsystem
+    # is off, kill-switched, or has no prior directive; the surrounding try guards
+    # the import itself, so a stock or disabled build is a no-op here.
     try:
         from hermes_cli.observability import salience_observer as _salience_observer
         agent.max_iterations = _salience_observer.bounded_iterations(
