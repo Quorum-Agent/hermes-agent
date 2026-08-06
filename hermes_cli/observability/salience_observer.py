@@ -95,6 +95,10 @@ _POLICY_KEY = os.urandom(32)
 # operator's resolved max_iterations (A4) when it wires the consumer.
 _DEFAULT_BUDGET = 25
 
+# Operator budget resolved once per process by _operator_budget() (only ever
+# called under _LOCK); None until first resolved, cleared by _reset_for_tests.
+_OPERATOR_BUDGET_CACHE = None
+
 _LOCK = threading.Lock()
 
 
@@ -225,9 +229,16 @@ def _close_session(kwargs: dict) -> None:
     if not session_id:
         return
     with _LOCK:
-        window = _WINDOWS.get(session_id)
+        window = _WINDOWS.pop(session_id, None)
         if window is not None and not window.closed:
-            _close_locked(window)
+            _close_locked(window)          # emit the final directive first
+        # Session is over: free its window AND its bus. Without this, a
+        # long-lived host (gateway/daemon serving many distinct sessions)
+        # accumulates one fully-materialized SalienceBus per session forever —
+        # the one way a produce-only observer could eventually OOM the host.
+        # A late hook for this session now hits _record's "no window" guard
+        # and is dropped, so freeing here is safe.
+        _BUSES.pop(session_id, None)
 
 
 def _close_locked(window: _Window) -> None:
@@ -237,12 +248,13 @@ def _close_locked(window: _Window) -> None:
         return
     window.closed = True
     try:
+        budget = _operator_budget()   # once: no min>max skew, no repeated I/O
         policy = issue_policy(
             "salience.observer.v0",   # policy_id
             window.subject,           # subject (matches the signals)
             (),                       # granted_capabilities: NONE (P-01)
-            _operator_budget(),       # min_budget (A4: operator floor)
-            _operator_budget(),       # max_budget (v0: pinned; PR-H2 widens)
+            budget,                   # min_budget (A4: operator floor)
+            budget,                   # max_budget (v0: pinned; PR-H2 widens)
             0,                        # min_verification
             3,                        # max_verification (FULL ceiling/default)
             "semantic",               # max_retention salience may buy
@@ -282,14 +294,24 @@ def _operator_budget() -> int:
     """The operator's resolved compute budget, used as the policy's min_budget
     floor (A4). Best-effort read of the configured iteration budget via the
     programmatic read path (NOT get_config_value — that is a CLI helper that
-    sys.exit()s on a missing key); falls back to a safe constant. PR-H2 owns
-    getting this exactly right (it consumes it)."""
+    sys.exit()s on a missing key); falls back to a safe constant.
+
+    Memoized: resolved once per process. It is only ever called from
+    _close_locked while _LOCK is held, so the module-global cache needs no extra
+    synchronization; reading once also removes any min>max skew from a config
+    change landing between two reads, and keeps config disk-I/O off the hot path
+    after the first finalize. PR-H2 owns getting this exactly right (it is the
+    consumer of the budget)."""
+    global _OPERATOR_BUDGET_CACHE
+    if _OPERATOR_BUDGET_CACHE is not None:
+        return _OPERATOR_BUDGET_CACHE
+    budget = _DEFAULT_BUDGET
     try:
         from hermes_cli.config import read_raw_config_readonly
 
         cfg = read_raw_config_readonly() or {}
     except Exception:
-        return _DEFAULT_BUDGET
+        cfg = {}
     for path in (("agent", "max_iterations"), ("max_iterations",), ("agent", "iteration_budget")):
         node: Any = cfg
         for part in path:
@@ -299,8 +321,10 @@ def _operator_budget() -> int:
                 node = None
                 break
         if isinstance(node, int) and not isinstance(node, bool) and node > 0:
-            return node
-    return _DEFAULT_BUDGET
+            budget = node
+            break
+    _OPERATOR_BUDGET_CACHE = budget
+    return budget
 
 
 # --- signal mapping (bounded, ref-shaped) ------------------------------------
@@ -345,7 +369,10 @@ def _map_api_error(kwargs: dict, subject: str) -> list:
 
 
 def _reset_for_tests() -> None:
-    """Drop all in-memory windows/buses. Test-only; never called in production."""
+    """Drop all in-memory windows/buses and the budget cache. Test-only; never
+    called in production."""
+    global _OPERATOR_BUDGET_CACHE
     with _LOCK:
         _WINDOWS.clear()
         _BUSES.clear()
+        _OPERATOR_BUDGET_CACHE = None

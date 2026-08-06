@@ -1,17 +1,18 @@
 """Tests for the Stage-2 salience producer (hermes_cli/observability/salience_observer.py).
 
-Covers the three things that make it safe: (1) it only produces against an open
-window with a matching turn id (fail-closed attribution); (2) it is gated
-(Quorum Edition + config, default ON, kill switch) and otherwise completely inert;
-(3) the durable record hashes the session id and verifies as a chain. The E2E drives
-a REAL tool-dispatch emitter (which self-gates on ``has_hook``) rather than calling
-the hook directly — calling the hook directly would enter below the gate and prove
-nothing about the wiring.
+Covers the things that make it safe: (1) it only produces against an open window
+with a matching turn id (fail-closed attribution); (2) it is gated (Quorum Edition +
+config, default ON, kill switch) and otherwise completely inert; (3) the durable
+record hashes the session id and verifies as a chain; (4) the emitted directive binds
+the operator budget; (5) a finished session frees its in-memory state (no per-session
+leak on a long-lived host). The E2E drives a REAL tool-dispatch emitter (which
+self-gates on ``has_hook``) rather than calling the hook directly — calling the hook
+directly would enter below the gate and prove nothing about the wiring.
 
 Note: the shared conftest disables the observer's gate suite-wide (it is default-ON
 in the product and must be inert in unrelated tests). These tests opt back in — the
 gate-logic tests restore the real ``salience_enabled`` and drive its inputs; the
-produce tests force the gate open directly.
+produce tests force the gate open or call the produce internals directly.
 """
 
 from pathlib import Path
@@ -54,6 +55,10 @@ def home(monkeypatch, tmp_path):
 def _real_gate(monkeypatch):
     """Restore the real gate so its own logic can be exercised."""
     monkeypatch.setattr(so, "salience_enabled", _REAL_SALIENCE_ENABLED, raising=False)
+
+
+def _bus_file(tmp_path, session_id):
+    return Path(tmp_path) / "salience" / (so._session_hash(session_id) + ".jsonl")
 
 
 # --- gating ------------------------------------------------------------------
@@ -136,16 +141,16 @@ def test_records_only_against_matching_open_window(home):
     assert so._bus_for("s").signals_for(subject) == ()
 
     so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
-    # wrong turn id -> dropped; empty session -> dropped
+    # wrong turn id -> dropped (the load-bearing attribution guard: deleting the
+    # turn_id check in _record makes the final count 2 and reds this test)
     so._record({"session_id": "s", "turn_id": "WRONG", "tool_name": "write_file",
-                "status": "ok"}, so._map_tool_call)
-    so._record({"session_id": "", "turn_id": "u", "tool_name": "write_file",
                 "status": "ok"}, so._map_tool_call)
     # matching -> recorded
     so._record({"session_id": "s", "turn_id": "u", "tool_name": "write_file",
                 "status": "ok"}, so._map_tool_call)
 
     assert len(so._bus_for("s").signals_for(subject)) == 1
+    # (empty session/turn ids are covered by test_no_ids_no_window.)
 
 
 def test_no_ids_no_window(home):
@@ -164,7 +169,7 @@ def test_subject_hashes_session_and_is_bounded():
     assert so._subject("super-secret-session", "turn-9") == subject  # deterministic
 
 
-# --- window finalize ---------------------------------------------------------
+# --- window finalize + directive content -------------------------------------
 
 def test_close_emits_one_directive_and_is_idempotent(home):
     subject = so._subject("s", "u")
@@ -187,6 +192,54 @@ def test_new_turn_finalizes_previous(home):
     # opening u2 must finalize u1 first (turn N governs N+1)
     so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u2"})
     assert len(so._bus_for("s").directives_for(so._subject("s", "u1"))) == 1
+
+
+def test_emitted_directive_binds_operator_budget(monkeypatch, tmp_path):
+    # A4: the operator's configured iteration budget is bound into the directive
+    # (min==max==operator budget in v0). Reverting the A4 binding or a broken
+    # _operator_budget read would change this value.
+    monkeypatch.setattr(hermes_constants, "get_hermes_home", lambda: tmp_path, raising=False)
+    monkeypatch.setattr(hermes_config, "read_raw_config_readonly",
+                        lambda: {"agent": {"max_iterations": 7}}, raising=False)
+    subject = so._subject("s", "u")
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+    so._record({"session_id": "s", "turn_id": "u", "tool_name": "write_file",
+                "status": "ok"}, so._map_tool_call)
+    so._close_session({"session_id": "s"})
+
+    directive = SalienceBus(str(_bus_file(tmp_path, "s"))).directives_for(subject)[0]
+    assert directive["compute_budget"] == 7
+
+
+def test_emitted_directive_defaults_budget_when_unconfigured(monkeypatch, tmp_path):
+    monkeypatch.setattr(hermes_constants, "get_hermes_home", lambda: tmp_path, raising=False)
+    monkeypatch.setattr(hermes_config, "read_raw_config_readonly", lambda: {}, raising=False)
+    subject = so._subject("s", "u")
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+    so._record({"session_id": "s", "turn_id": "u", "tool_name": "write_file",
+                "status": "ok"}, so._map_tool_call)
+    so._close_session({"session_id": "s"})
+
+    directive = SalienceBus(str(_bus_file(tmp_path, "s"))).directives_for(subject)[0]
+    assert directive["compute_budget"] == so._DEFAULT_BUDGET
+
+
+def test_session_close_frees_registries(home):
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+    so._record({"session_id": "s", "turn_id": "u", "tool_name": "write_file",
+                "status": "ok"}, so._map_tool_call)
+    assert "s" in so._WINDOWS and "s" in so._BUSES
+
+    so._close_session({"session_id": "s"})
+    # session over: both registries release it, so a long-lived host doesn't
+    # accumulate one materialized bus per session. Reverting the _BUSES pop reds this.
+    assert "s" not in so._WINDOWS
+    assert "s" not in so._BUSES
+
+    # a late hook for the closed session is dropped, not recorded
+    so._record({"session_id": "s", "turn_id": "u", "tool_name": "write_file",
+                "status": "ok"}, so._map_tool_call)
+    assert "s" not in so._WINDOWS
 
 
 # --- real-dispatch E2E -------------------------------------------------------
@@ -219,19 +272,23 @@ def test_e2e_through_real_tool_dispatch(home):
     lifecycle.invoke_hook("on_session_finalize", session_id=session_id)
 
     subject = so._subject(session_id, turn_id)
-    path = Path(home) / "salience" / (so._session_hash(session_id) + ".jsonl")
+    path = _bus_file(home, session_id)
     assert path.exists()
 
     bus = SalienceBus(str(path))
     facets = sorted(s.facet for s in bus.signals_for(subject))
     assert facets == ["memory", "verification"]        # mutation + tool error
     assert len(bus.directives_for(subject)) == 1
+    # replay-on-open raises on a broken chain, so reaching here already means the
+    # observer wrote a well-formed multi-entry chain; the assert documents intent.
     assert bus.verify_chain() is True
     assert session_id not in subject                   # hashed on disk
 
 
-def test_disabled_produces_nothing_through_dispatch(monkeypatch, tmp_path):
-    _force_gate(monkeypatch, tmp_path, False)  # kill switch off
+def test_closed_gate_produces_nothing_through_dispatch(monkeypatch, tmp_path):
+    # Proves a closed gate ⇒ no window, has_hook False, nothing written. The
+    # config-parse side of the kill switch is covered by test_kill_switch_disables.
+    _force_gate(monkeypatch, tmp_path, False)
     from hermes_cli import lifecycle
     import model_tools
 
