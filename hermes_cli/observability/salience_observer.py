@@ -45,6 +45,7 @@ zero-cost path and this observer is completely inert.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import logging
 import os
@@ -105,9 +106,10 @@ MAX_TOKEN_LEN = 128  # mirrors salienceos.interpreter.signal.MAX_TOKEN_LEN
 # cross-process authenticity). Regenerated each process — honest about its scope.
 _POLICY_KEY = os.urandom(32)
 
-# Fallback compute budget baked into the produce policy. In v0 the directive's
-# compute_budget is inert (nothing consumes it yet); PR-H2 binds this to the
-# operator's resolved max_iterations (A4) when it wires the consumer.
+# Fallback compute budget for the produce policy when no operator max_iterations is
+# configured. It flows into the policy's min/max floor (_operator_budget → A4) and
+# thus into the directive.compute_budget the consumer now reads; in v0 that value
+# echoes the operator budget, so the consumer stays behavior-preserving.
 _DEFAULT_BUDGET = 25
 
 # Operator budget resolved once per process by _operator_budget() (only ever
@@ -554,7 +556,9 @@ def _budget_from_disk(session_id: str) -> "int | None":
     independent parse of the file (which would be redundant with the replay and
     could pick a stale subject if the file were truncated between the two reads),
     and no reliance on the subject-keyed public accessor we cannot key without a
-    turn id. Caller holds ``_LOCK``."""
+    turn id. The recovered directive is deep-copied and promoted into
+    ``_LAST_DIRECTIVE`` (a state-mutating side effect) so this once-per-restart cold
+    path need not repeat on a second read. Caller holds ``_LOCK``."""
     if session_id in _BUSES:
         return None
     from pathlib import Path
@@ -572,7 +576,11 @@ def _budget_from_disk(session_id: str) -> "int | None":
     directives = getattr(bus, "_directives", None)
     if not directives:
         return None
-    payload = directives[-1][1]
+    # Deep-copy out of the bus's internal store before caching: directives[-1][1] is
+    # the SAME dict the bus holds in _directives/_entries, and directives_for()
+    # deep-copies for exactly this reason — never hand a consumer a mutable alias into
+    # the verified audit record.
+    payload = copy.deepcopy(directives[-1][1])
     # Promote the verified recovery into the in-memory cache: the cold disk path
     # runs only once per restart (a warm _BUSES short-circuits it), so without this a
     # second read before the next close would drop the recovered value to default
@@ -610,18 +618,22 @@ def _resolve_bounded(session_id: str, default: int) -> "int | None":
 
 
 def bounded_iterations(session_id: str, default: int) -> int:
-    """Bound this turn's iteration budget by the directive recorded for the PRIOR
+    """Bound this turn's iteration budget by the directive recorded for the prior
     turn — the first governed knob (wired live; inert in v0). Called once at turn
     start, immediately before the host rebuilds its ``IterationBudget`` (between-turn
-    only, Finding F).
+    only, Finding F). Precisely, it applies the most recently RECORDED turn's
+    directive: normally that is the immediately prior turn, but a turn that aborts
+    before opening its window records nothing, so an earlier turn may be the latest.
 
     Fails OPEN to ``default`` on EVERYTHING: subsystem off, consumption kill switch
-    off, no prior directive, a deny-shaped directive, or any error. In the v0 config
-    the directive echoes the operator's own budget (pinned window + ATTENTION
-    unmapped), so this is behavior-preserving until a future change widens the policy
-    window and maps a budget-moving facet (its own review). Consumer, not decider
-    (Finding D): the returned value is the recorded, policy-clamped budget applied
-    verbatim — never re-clamped against ``default`` or config, up OR down."""
+    off, no prior directive, a deny-shaped directive, or any error. ``default`` is
+    the host's positive iteration budget; a non-positive ``default`` is out of
+    contract (the consumer still never returns < 1 when a directive is present). In
+    the v0 config the directive echoes the operator's own budget (pinned window +
+    ATTENTION unmapped), so this is behavior-preserving until a future change widens
+    the policy window and maps a budget-moving facet (its own review). Consumer, not
+    decider (Finding D): the returned value is the recorded, policy-clamped budget
+    applied verbatim — never re-clamped against ``default`` or config, up OR down."""
     if not isinstance(default, int) or isinstance(default, bool):
         return default  # nothing sane to compare against; leave the caller's value
     try:

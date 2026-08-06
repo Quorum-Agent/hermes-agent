@@ -246,6 +246,40 @@ def test_cold_recovery_is_cached_for_second_read(monkeypatch, tmp_path):
     assert so.bounded_iterations("s", 10) == 7
 
 
+def test_cold_recovery_reads_newest_directive(monkeypatch, tmp_path):
+    # Cold recovery must return the NEWEST persisted directive, not an older one.
+    # v0 makes every LIVE budget equal the operator budget, so the single-directive
+    # recovery tests can't tell [-1] from [0]. Emit two DISTINCT budgets straight to
+    # the session bus, then recover after a restart: the tail (9) must win. The
+    # mutation `directives[0]` (oldest) recovers 5 and reds.
+    _use_config(monkeypatch, tmp_path, {"salience": {"enabled": True}}, gate=True)
+    bus = so._bus_for("s")
+    bus.emit(_make_directive(so._subject("s", "u1"), 5))
+    bus.emit(_make_directive(so._subject("s", "u2"), 9))
+    so._reset_for_tests()                           # restart: in-memory gone, file remains
+    assert so.bounded_iterations("s", 10) == 9      # newest persisted directive wins
+
+
+def test_cold_recovery_promote_is_deepcopied_not_aliased(monkeypatch, tmp_path):
+    # The promoted recovery must be an INDEPENDENT copy, not an alias into the bus's
+    # verified in-memory store — a future consumer mutating the cache must not corrupt
+    # the audit chain. Reverting the deepcopy to a raw `directives[-1][1]` reds both
+    # asserts.
+    _use_config(monkeypatch, tmp_path,
+                {"agent": {"max_iterations": 7}, "salience": {"enabled": True}}, gate=True)
+    _open("s", "u")
+    _record_write("s", "u")
+    so._close_session({"session_id": "s"})
+    so._reset_for_tests()
+
+    so.bounded_iterations("s", 10)                   # cold recovery promotes into _LAST_DIRECTIVE
+    cached = so._LAST_DIRECTIVE["s"]
+    bus = so._BUSES["s"]
+    assert cached is not bus._directives[-1][1]      # independent copy, not an alias
+    cached["compute_budget"] = 999                   # mutate the cache…
+    assert bus.verify_chain() is True                # …bus audit chain stays intact
+
+
 def test_restart_corrupt_tail_fails_closed_to_default(monkeypatch, tmp_path):
     _use_config(monkeypatch, tmp_path,
                 {"agent": {"max_iterations": 7}, "salience": {"enabled": True}}, gate=True)
