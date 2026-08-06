@@ -128,6 +128,10 @@ def test_mapping_by_facet():
     assert [s.facet for s in api] == ["verification"]
     # provenance carries only bounded ref tokens, never bodies/args
     assert all(len(p) <= so.MAX_TOKEN_LEN for p in api[0].provenance)
+    # influence: a non-retryable OR unknown-retryable failure is more salient
+    assert so._map_api_error({"retryable": False}, subject)[0].influence == 0.8
+    assert so._map_api_error({"retryable": None}, subject)[0].influence == 0.8
+    assert so._map_api_error({"retryable": True}, subject)[0].influence == 0.5
 
 
 # --- fail-closed attribution -------------------------------------------------
@@ -367,3 +371,46 @@ def test_close_locked_is_idempotent(home):
     so._close_locked(window)
     so._close_locked(window)  # second call is a no-op (window.closed guard)
     assert len(so._bus_for("s").directives_for(so._subject("s", "u"))) == 1
+
+
+# --- pass-2 external-panel regression tests ----------------------------------
+
+def test_gate_contains_systemexit_from_config(monkeypatch):
+    # The gate runs on the tool-call hot path (has_hook), OUTSIDE observe_lifecycle's
+    # guard. A config helper that sys.exit()s there must NOT crash the host.
+    _real_gate(monkeypatch)
+    monkeypatch.setattr(product_identity, "IS_QUORUM_EDITION", True, raising=False)
+
+    def _boom():
+        raise SystemExit(1)
+
+    monkeypatch.setattr(hermes_config, "read_raw_config_readonly", _boom, raising=False)
+    assert so.salience_enabled() is False        # contained -> fail-closed, no propagation
+    assert so.handles_hook("post_tool_call") is False
+
+
+def test_bus_never_contains_tool_payload(home):
+    # Finding G / audit fence: tool args, results, and messages must never reach the
+    # durable record — not merely be truncated. Drives distinctive payload through
+    # and asserts it is absent from the JSONL (a sabotage that adds args/result to
+    # provenance would leak these sentinels and red this test).
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+    so._record({"session_id": "s", "turn_id": "u", "tool_name": "write_file",
+                "status": "ok", "args": {"k": "SENTINEL_ARG"},
+                "result": "SENTINEL_RESULT", "error_message": "SENTINEL_ERR"},
+               so._map_tool_call)
+    so._close_session({"session_id": "s"})
+
+    raw = _bus_file(home, "s").read_text(encoding="utf-8")
+    for leak in ("SENTINEL_ARG", "SENTINEL_RESULT", "SENTINEL_ERR"):
+        assert leak not in raw
+
+
+def test_seam_returns_plugin_result_unchanged(home, monkeypatch):
+    # Guarantee 6: the observer must never alter invoke_hook's return value (which
+    # feeds pre_llm_call context injection) — it comes from PLUGINS only.
+    from hermes_cli import lifecycle, plugins
+
+    monkeypatch.setattr(plugins, "invoke_hook", lambda name, **kw: ["PLUGIN_SENTINEL"])
+    result = lifecycle.invoke_hook("pre_llm_call", session_id="s", task_id="t", turn_id="u")
+    assert result == ["PLUGIN_SENTINEL"]  # observer opened a window but changed nothing

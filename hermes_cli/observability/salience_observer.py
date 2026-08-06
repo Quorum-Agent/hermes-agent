@@ -145,7 +145,7 @@ def _config_flag(key: str, default: bool) -> bool:
         from hermes_cli.config import read_raw_config_readonly
 
         cfg = read_raw_config_readonly() or {}
-    except Exception:
+    except (Exception, SystemExit):  # a config helper that sys.exit()s must not crash the host
         return False
     salience = cfg.get("salience") if isinstance(cfg, dict) else None
     if not isinstance(salience, dict) or key not in salience:
@@ -157,9 +157,12 @@ def salience_enabled() -> bool:
     """Quorum Edition AND not explicitly disabled (default ON)."""
     if not _IMPORT_OK:
         return False
+    # (Exception, SystemExit): the gate runs on the tool-call hot path via has_hook,
+    # OUTSIDE observe_lifecycle's guard — a host API here that sys.exit()s must not
+    # crash the host. KeyboardInterrupt is intentionally NOT caught anywhere.
     try:
         from product_identity import IS_QUORUM_EDITION
-    except Exception:
+    except (Exception, SystemExit):
         return False
     if not IS_QUORUM_EDITION:
         return False
@@ -299,7 +302,7 @@ def _close_locked(window: _Window) -> None:
         )
         directive = interpret(policy, tuple(window.signals), _POLICY_KEY)
         _bus_for(window.session_id).emit(directive)
-    except Exception:
+    except (Exception, SystemExit):  # consistent with the gate + dispatch containment
         logger.warning("salience observer: window finalize failed", exc_info=True)
 
 
@@ -343,7 +346,7 @@ def _operator_budget() -> int:
         from hermes_cli.config import read_raw_config_readonly
 
         cfg = read_raw_config_readonly() or {}
-    except Exception:
+    except (Exception, SystemExit):
         cfg = {}
     for path in (("agent", "max_iterations"), ("max_iterations",), ("agent", "iteration_budget")):
         node: Any = cfg
