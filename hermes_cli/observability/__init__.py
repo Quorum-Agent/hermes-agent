@@ -13,13 +13,29 @@ def observe_lifecycle(hook_name: str, **kwargs: Any) -> None:
     from . import relay_shared_metrics
 
     _safe_observe(relay_shared_metrics.observe_lifecycle, hook_name, kwargs)
+    # Import the salience observer independently so a failure to import it can
+    # never starve the relay dispatch above (which must always run first).
+    try:
+        from . import salience_observer
+    except Exception:
+        logger.warning("Salience observer unavailable", exc_info=True)
+        return
+    _safe_observe(salience_observer.observe_lifecycle, hook_name, kwargs)
 
 
 def handles_hook(hook_name: str) -> bool:
     """Return whether any built-in observability feature handles a hook."""
     from . import relay_shared_metrics
 
-    return relay_shared_metrics.handles_hook(hook_name)
+    if relay_shared_metrics.handles_hook(hook_name):
+        return True
+    # Independent import for the same reason: a salience import failure must not
+    # mask the relay answer computed above.
+    try:
+        from . import salience_observer
+    except Exception:
+        return False
+    return salience_observer.handles_hook(hook_name)
 
 
 def _safe_observe(callback: Any, hook_name: str, kwargs: dict[str, Any]) -> None:
