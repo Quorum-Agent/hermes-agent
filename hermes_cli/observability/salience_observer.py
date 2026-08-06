@@ -122,9 +122,25 @@ _BUSES: dict[str, Any] = {}         # session_id -> SalienceBus
 
 # --- gating ------------------------------------------------------------------
 
+_OFF_VALUES = frozenset({"false", "0", "no", "off", "n", ""})
+
+
+def _looks_off(value) -> bool:
+    """A kill switch must honor any clearly-off value, not only bool ``False``: an
+    operator who writes ``enabled: "false"`` / ``0`` / ``off`` means OFF. Anything
+    not recognizably off is treated as on (the block/key was present on purpose)."""
+    if value is False or value is None:
+        return True
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value == 0
+    if isinstance(value, str):
+        return value.strip().lower() in _OFF_VALUES
+    return False
+
+
 def _config_flag(key: str, default: bool) -> bool:
     """Read a boolean under the top-level ``salience`` config block. Missing key ⇒
-    ``default``; explicit ``false`` ⇒ off; unreadable config ⇒ fail-closed (off)."""
+    ``default``; a recognizably-off value ⇒ off; unreadable config ⇒ fail-closed."""
     try:
         from hermes_cli.config import read_raw_config_readonly
 
@@ -134,7 +150,7 @@ def _config_flag(key: str, default: bool) -> bool:
     salience = cfg.get("salience") if isinstance(cfg, dict) else None
     if not isinstance(salience, dict) or key not in salience:
         return default
-    return salience.get(key) is not False
+    return not _looks_off(salience.get(key))
 
 
 def salience_enabled() -> bool:
@@ -155,8 +171,18 @@ def handles_hook(hook_name: str) -> bool:
 
 
 def observe_lifecycle(hook_name: str, **kwargs: Any) -> None:
-    """Dispatch one lifecycle event into the produce path. Never raises."""
-    if not handles_hook(hook_name):
+    """Dispatch one lifecycle event into the produce path.
+
+    Never propagates: catches Exception AND SystemExit — a host API the observer
+    calls could raise SystemExit (e.g. a CLI-shaped config helper that sys.exit()s),
+    which would otherwise sail past ``except Exception`` and take down the host.
+    KeyboardInterrupt is deliberately NOT caught: the user's interrupt must reach
+    the host."""
+    # Session-close events run REGARDLESS of the gate so an already-open window is
+    # finalized and freed even if the kill switch was flipped off mid-session (no
+    # registry leak). They are cheap no-ops when nothing is open for the session.
+    close = hook_name in ("on_session_end", "on_session_finalize", "on_session_reset")
+    if not close and not handles_hook(hook_name):
         return
     try:
         if hook_name == "pre_llm_call":
@@ -165,9 +191,9 @@ def observe_lifecycle(hook_name: str, **kwargs: Any) -> None:
             _record(kwargs, _map_tool_call)
         elif hook_name == "api_request_error":
             _record(kwargs, _map_api_error)
-        elif hook_name in ("on_session_end", "on_session_finalize", "on_session_reset"):
+        elif close:
             _close_session(kwargs)
-    except Exception:  # pragma: no cover - belt: dispatch site already isolates us
+    except (Exception, SystemExit):  # never let a host-API failure reach the host
         logger.warning("salience observer hook failed: %s", hook_name, exc_info=True)
 
 
@@ -184,8 +210,15 @@ def _session_hash(session_id: str) -> str:
 def _subject(session_id: str, turn_id: str) -> str:
     """Durable arbitration key: hashed session component + turn id, bounded to a
     ref token. Same value for the window's signals and its policy (interpret needs
-    them to share a subject)."""
-    return (_session_hash(session_id)[:16] + ":" + turn_id)[:MAX_TOKEN_LEN]
+    them to share a subject).
+
+    When turn_id is too long to fit intact, it is HASHED rather than truncated:
+    plain truncation would alias two distinct turns that share a long prefix onto
+    the same durable subject, cross-contaminating them in the persisted record."""
+    head = _session_hash(session_id)[:16] + ":"
+    room = MAX_TOKEN_LEN - len(head)
+    tail = turn_id if len(turn_id) <= room else _session_hash(turn_id)
+    return (head + tail)[:MAX_TOKEN_LEN]
 
 
 # --- window lifecycle --------------------------------------------------------

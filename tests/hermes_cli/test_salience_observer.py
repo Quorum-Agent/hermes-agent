@@ -303,3 +303,67 @@ def test_closed_gate_produces_nothing_through_dispatch(monkeypatch, tmp_path):
     # nothing opened, nothing written
     assert so._WINDOWS == {}
     assert not (Path(tmp_path) / "salience").exists()
+
+
+# --- pass-1 external-panel regression tests ----------------------------------
+
+def test_subject_hashes_long_turn_id_without_aliasing():
+    # Two distinct turn ids sharing a long prefix must NOT collapse to the same
+    # durable subject (plain truncation would alias them — grok F1).
+    sa = so._subject("s", "x" * 200 + "A")
+    sb = so._subject("s", "x" * 200 + "B")
+    assert sa != sb
+    assert len(sa) <= so.MAX_TOKEN_LEN and len(sb) <= so.MAX_TOKEN_LEN
+    # short turn ids stay readable (not hashed)
+    assert so._subject("s", "turn-1").endswith(":turn-1")
+
+
+def test_systemexit_from_host_api_is_contained(home, monkeypatch):
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+
+    def _boom():
+        raise SystemExit(1)  # a host API that sys.exit()s, like the fixed get_config_value
+
+    monkeypatch.setattr(hermes_constants, "get_hermes_home", _boom, raising=False)
+    # must NOT propagate — a produce-only observer may never crash the host
+    so.observe_lifecycle("post_tool_call", session_id="s", turn_id="u",
+                         tool_name="write_file", status="ok")
+
+
+def test_records_drop_across_sessions(home):
+    so._open_window({"session_id": "s1", "task_id": "t", "turn_id": "u"})
+    # a record for a DIFFERENT session (no open window) must be dropped, never
+    # recorded against s1's window (a single global window would fail this).
+    so._record({"session_id": "s2", "turn_id": "u", "tool_name": "write_file",
+                "status": "ok"}, so._map_tool_call)
+    assert "s2" not in so._BUSES
+    assert so._bus_for("s1").signals_for(so._subject("s1", "u")) == ()
+
+
+@pytest.mark.parametrize("value", ["false", "off", "no", "0", 0, None, ""])
+def test_kill_switch_honors_falsey_values(monkeypatch, value):
+    _real_gate(monkeypatch)
+    monkeypatch.setattr(product_identity, "IS_QUORUM_EDITION", True, raising=False)
+    monkeypatch.setattr(hermes_config, "read_raw_config_readonly",
+                        lambda: {"salience": {"enabled": value}}, raising=False)
+    assert so.salience_enabled() is False
+
+
+def test_close_frees_even_when_gate_flips_off(monkeypatch, tmp_path):
+    _force_gate(monkeypatch, tmp_path, True)
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+    assert "s" in so._WINDOWS
+    # operator flips the kill switch mid-session
+    monkeypatch.setattr(so, "salience_enabled", lambda: False, raising=False)
+    # a session-close event still finalizes + frees (cleanup is not gated)
+    so.observe_lifecycle("on_session_finalize", session_id="s")
+    assert "s" not in so._WINDOWS
+    assert "s" not in so._BUSES
+
+
+def test_close_locked_is_idempotent(home):
+    so._open_window({"session_id": "s", "task_id": "t", "turn_id": "u"})
+    window = so._WINDOWS["s"]
+    so._close_locked(window)
+    so._close_locked(window)  # second call is a no-op (window.closed guard)
+    assert len(so._bus_for("s").directives_for(so._subject("s", "u"))) == 1
