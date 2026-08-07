@@ -454,19 +454,6 @@ def _hermetic_environment(tmp_path, monkeypatch):
             hermes_state_mod, "DEFAULT_DB_PATH", fake_hermes_home / "state.db"
         )
 
-    # 3c. The salience observer is default-ON in the product (Stage-2 producer),
-    #     but must be INERT across the suite unless a test opts in: reset its
-    #     module-global window/bus registries per test (no cross-test leakage)
-    #     and disable its gate by default. Its own tests re-enable it explicitly.
-    #     The import is _IMPORT_OK-guarded, so this can never fail even if the
-    #     vendored salienceos package is broken.
-    from hermes_cli.observability import salience_observer as _salience_observer
-
-    _salience_observer._reset_for_tests()
-    monkeypatch.setattr(
-        _salience_observer, "salience_enabled", lambda: False, raising=False
-    )
-
     # 4. Deterministic locale / timezone / hashseed. CI runs in UTC with
     #    C.UTF-8 locale; local dev often doesn't. Pin everything.
     monkeypatch.setenv("TZ", "UTC")
